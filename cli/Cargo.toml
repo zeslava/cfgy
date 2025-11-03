@@ -1,0 +1,44 @@
+[package]
+name = "cfgy-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Workspace dependencies
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+config.workspace = true
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+urlencoding = "2.1"
+
+# Crypto (for local encryption)
+ring = "0.17"
+aes-gcm = { version = "0.10", features = ["aes", "rand_core"] }
+argon2 = "0.5"
+hex = "0.4"
+base64 = "0.22"
+
+# File formats
+serde_yaml = "0.9"
+
+# Directories
+dirs = "5.0"
+
+# UUID
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# Chrono for timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Environment variables from .env file
+dotenv = "0.15"
+
+# Shared crate
+cfgy-shared = { path = "../shared" }

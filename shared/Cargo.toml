@@ -1,0 +1,9 @@
+[package]
+name = "cfgy-shared"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Workspace dependencies
+serde.workspace = true
+serde_json.workspace = true

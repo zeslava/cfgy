@@ -1,0 +1,29 @@
+[package]
+name = "cfgy-tests"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "smoke_tests"
+path = "smoke_tests.rs"
+
+[dependencies]
+# Workspace dependencies
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+# HTTP client для тестирования API
+reqwest = { version = "0.12", features = ["json"] }
+
+# Для генерации уникальных данных
+uuid = { version = "1.6", features = ["v4"] }
+
+# Для работы с датами (если нужно)
+chrono = { version = "0.4", features = ["serde"] }
+
+# Для URL encoding
+urlencoding = "2.1"
+
