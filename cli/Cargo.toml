@@ -39,6 +39,3 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Environment variables from .env file
 dotenv = "0.15"
-
-# Shared crate
-cfgy-shared = { path = "../shared" }

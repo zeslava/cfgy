@@ -27,10 +27,24 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Init { project } => init_project(project).await,
-        Commands::Set { key, value, env } => set_config(key, value, env, &app_config).await,
-        Commands::Get { key, env, format } => get_config(key, env, format, &app_config).await,
-        Commands::List { env, format } => list_configs(env, format, &app_config).await,
-        Commands::Delete { key, env } => delete_config(key, env, &app_config).await,
+        Commands::Use { configuration } => use_configuration(configuration).await,
+        Commands::Set {
+            key,
+            value,
+            configuration,
+        } => set_config(key, value, configuration, &app_config).await,
+        Commands::Get {
+            key,
+            configuration,
+            format,
+        } => get_config(key, configuration, format, &app_config).await,
+        Commands::List {
+            configuration,
+            format,
+        } => list_configs(configuration, format, &app_config).await,
+        Commands::Delete { key, configuration } => {
+            delete_config(key, configuration, &app_config).await
+        }
         Commands::Run { command } => run_command(command, &app_config).await,
         Commands::Projects { action } => handle_projects(action, &app_config).await,
         Commands::Token { action } => handle_token(action, &app_config).await,
@@ -52,12 +66,19 @@ async fn init_project(project_name: Option<String>) -> Result<()> {
     config.init(project_name.clone(), &path)?;
     println!("✓ Проект '{}' инициализирован", project_name);
     println!("  Конфигурация: {}", path.display());
-    println!("  Окружение: {}", config.environment);
+    println!("  Configuration: {}", config.configuration);
     Ok(())
 }
 
-async fn set_config(key: String, value: String, env: String, app_config: &AppConfig) -> Result<()> {
+async fn set_config(
+    key: String,
+    value: String,
+    configuration: Option<String>,
+    app_config: &AppConfig,
+) -> Result<()> {
     let config = ProjectConfig::load()?;
+
+    let configuration = configuration.unwrap_or_else(|| config.configuration.clone());
 
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
@@ -72,7 +93,7 @@ async fn set_config(key: String, value: String, env: String, app_config: &AppCon
 
     // Получить текущие секреты
     let mut secrets = client
-        .get_secrets(project.id, &env)
+        .get_secrets(project.id, &configuration)
         .await
         .unwrap_or_default();
 
@@ -80,20 +101,27 @@ async fn set_config(key: String, value: String, env: String, app_config: &AppCon
     secrets.insert(key.clone(), value.clone());
 
     // Отправить обновленные секреты
-    client.set_secrets(project.id, &env, &secrets).await?;
+    client
+        .set_secrets(project.id, &configuration, &secrets)
+        .await?;
 
-    println!("✓ Конфиг '{}' установлен для окружения '{}'", key, env);
+    println!(
+        "✓ Конфиг '{}' установлен для configuration '{}'",
+        key, configuration
+    );
 
     Ok(())
 }
 
 async fn get_config(
     key: String,
-    env: String,
+    configuration: Option<String>,
     format: String,
     app_config: &AppConfig,
 ) -> Result<()> {
     let config = ProjectConfig::load()?;
+
+    let configuration = configuration.unwrap_or_else(|| config.configuration.clone());
 
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
@@ -105,11 +133,14 @@ async fn get_config(
     // Работа с сервером - найти проект по имени
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
-    let secrets = client.get_secrets(project.id, &env).await?;
-    let value = secrets
-        .get(&key)
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("Конфиг '{}' не найден в окружении '{}'", key, env))?;
+    let secrets = client.get_secrets(project.id, &configuration).await?;
+    let value = secrets.get(&key).cloned().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Конфиг '{}' не найден в configuration '{}'",
+            key,
+            configuration
+        )
+    })?;
 
     let output_format = OutputFormat::from_str(&format)?;
 
@@ -122,8 +153,14 @@ async fn get_config(
     Ok(())
 }
 
-async fn list_configs(env: String, format: String, app_config: &AppConfig) -> Result<()> {
+async fn list_configs(
+    configuration: Option<String>,
+    format: String,
+    app_config: &AppConfig,
+) -> Result<()> {
     let config = ProjectConfig::load()?;
+
+    let configuration = configuration.unwrap_or_else(|| config.configuration.clone());
 
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
@@ -135,10 +172,10 @@ async fn list_configs(env: String, format: String, app_config: &AppConfig) -> Re
     // Работа с сервером - найти проект по имени
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
-    let configs = client.get_secrets(project.id, &env).await?;
+    let configs = client.get_secrets(project.id, &configuration).await?;
 
     if configs.is_empty() {
-        eprintln!("⚠ Нет конфигов для окружения '{}'", env);
+        eprintln!("⚠ Нет конфигов для configuration '{}'", configuration);
         return Ok(());
     }
 
@@ -148,8 +185,14 @@ async fn list_configs(env: String, format: String, app_config: &AppConfig) -> Re
     Ok(())
 }
 
-async fn delete_config(key: String, env: String, app_config: &AppConfig) -> Result<()> {
+async fn delete_config(
+    key: String,
+    configuration: Option<String>,
+    app_config: &AppConfig,
+) -> Result<()> {
     let config = ProjectConfig::load()?;
+
+    let configuration = configuration.unwrap_or_else(|| config.configuration.clone());
 
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
@@ -163,9 +206,14 @@ async fn delete_config(key: String, env: String, app_config: &AppConfig) -> Resu
     let project = client.find_project_by_name(&config.project).await?;
 
     // Удалить секрет на сервере
-    client.delete_secret(project.id, &env, &key).await?;
+    client
+        .delete_secret(project.id, &configuration, &key)
+        .await?;
 
-    println!("✓ Конфиг '{}' удален из окружения '{}'", key, env);
+    println!(
+        "✓ Конфиг '{}' удален из configuration '{}'",
+        key, configuration
+    );
 
     Ok(())
 }
@@ -173,11 +221,11 @@ async fn delete_config(key: String, env: String, app_config: &AppConfig) -> Resu
 async fn run_command(command: Vec<String>, app_config: &AppConfig) -> Result<()> {
     let config = ProjectConfig::load()?;
 
-    // Получить окружение из конфигурации или из переменной окружения (fallback)
-    let env = if !config.environment.is_empty() {
-        config.environment.clone()
+    // Получить configuration из конфигурации или из переменной окружения (fallback)
+    let configuration = if !config.configuration.is_empty() {
+        config.configuration.clone()
     } else {
-        std::env::var("CFGY_ENV").unwrap_or_else(|_| "development".to_string())
+        std::env::var("CFGY_CONFIGURATION").unwrap_or_else(|_| "dev".to_string())
     };
 
     let token = app_config.require_api_token()?;
@@ -187,13 +235,13 @@ async fn run_command(command: Vec<String>, app_config: &AppConfig) -> Result<()>
         anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
     }
 
-    // Работа с сервером - найти проект по имени и получить секреты для указанного окружения
+    // Работа с сервером - найти проект по имени и получить "parameters" для указанной configuration
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
-    let configs = client.get_secrets(project.id, &env).await?;
+    let configs = client.get_secrets(project.id, &configuration).await?;
 
     if configs.is_empty() {
-        eprintln!("⚠ Нет конфигов для окружения '{}'", env);
+        eprintln!("⚠ Нет конфигов для configuration '{}'", configuration);
     }
 
     let (cmd_name, args) = command
@@ -392,7 +440,7 @@ async fn view_project(_app_config: &AppConfig) -> Result<()> {
     } else {
         println!("  Имя: не указано");
     }
-    println!("  Окружение: {}", config.environment);
+    println!("  Configuration: {}", config.configuration);
     Ok(())
 }
 
@@ -471,6 +519,23 @@ async fn edit_project(app_config: &AppConfig) -> Result<()> {
     if let Some(desc) = &updated_project.description {
         println!("  Описание: {}", desc);
     }
+    Ok(())
+}
+
+async fn use_configuration(configuration: String) -> Result<()> {
+    let path = ProjectConfig::find_config_path()?;
+    let mut config = ProjectConfig::load()?;
+
+    let configuration = configuration.trim().to_string();
+    if configuration.is_empty() {
+        anyhow::bail!("Configuration не может быть пустой");
+    }
+
+    config.configuration = configuration.clone();
+    config.save(&path)?;
+
+    println!("✓ Используется configuration '{}'", configuration);
+    println!("  Конфигурация: {}", path.display());
     Ok(())
 }
 

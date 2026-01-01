@@ -1,0 +1,282 @@
+/* Button Component Styles */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  border: none;
+}
+
+.button:focus {
+  outline: none;
+}
+
+.button-full-width {
+  width: 100%;
+}
+
+/* Button Sizes */
+.button-big-text {
+  padding-left: var(--spacing-space-16, 16px);
+  padding-right: var(--spacing-space-16, 16px);
+  padding-top: var(--spacing-space-8, 8px);
+  padding-bottom: var(--spacing-space-8, 8px);
+  font-size: var(--text-kegel-16, 16px);
+  height: 45px;
+  border-radius: var(--radius-radius-4, 4px);
+}
+
+.button-medium-text {
+  padding-left: var(--spacing-space-16, 16px);
+  padding-right: var(--spacing-space-16, 16px);
+  padding-top: var(--spacing-space-8, 8px);
+  padding-bottom: var(--spacing-space-8, 8px);
+  font-size: var(--text-size-18, 18px);
+  height: 40px;
+  border-radius: var(--radius-radius-4, 4px);
+}
+
+.button-small-text {
+  padding-left: var(--spacing-space-16, 16px);
+  padding-right: var(--spacing-space-16, 16px);
+  padding-top: var(--spacing-space-8, 8px);
+  padding-bottom: var(--spacing-space-8, 8px);
+  font-size: var(--text-size-14, 14px);
+  height: 36px;
+  border-radius: var(--radius-radius-4, 4px);
+}
+
+.button-small-icon {
+  padding: 6px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-radius-4, 4px);
+}
+
+.button-sm {
+  font-size: 12px;
+  height: 32px;
+  padding-left: 12px;
+  padding-right: 12px;
+  gap: 8px;
+  border-radius: var(--radius-radius-4, 4px);
+}
+
+.button-md {
+  font-size: 14px;
+  height: 40px;
+  padding-left: 16px;
+  padding-right: 16px;
+  gap: 8px;
+  border-radius: var(--radius-radius-4, 4px);
+}
+
+.button-lg {
+  font-size: 16px;
+  height: 48px;
+  padding-left: 24px;
+  padding-right: 24px;
+  gap: 12px;
+  border-radius: var(--radius-radius-4, 4px);
+}
+
+/* Button Variants - Danger */
+.button-danger-default {
+  background-color: var(--color-states-error);
+  color: var(--color-text-light);
+}
+
+.button-danger-default:hover {
+  background-color: var(--color-states-error-hover);
+}
+
+.button-danger-hover {
+  background-color: var(--color-states-error-hover);
+  color: var(--color-text-light);
+}
+
+.button-danger-active {
+  background-color: var(--color-states-error-active);
+  color: var(--color-text-light);
+}
+
+.button-danger-pressed {
+  background-color: var(--color-states-error-pressed);
+  color: var(--color-text-light);
+}
+
+.button-danger-disabled {
+  background-color: var(--color-states-disable);
+  color: var(--color-basic-gray);
+  cursor: not-allowed;
+}
+
+/* Button Variants - Outline */
+.button-outline-default {
+  background-color: var(--color-background-light);
+  border: 1px solid var(--color-basic-gray);
+  color: var(--color-text-dark);
+}
+
+.button-outline-default:hover {
+  background-color: var(--color-basic-secondary);
+}
+
+.button-outline-hover {
+  background-color: var(--color-basic-secondary);
+  border: 1px solid var(--color-basic-gray);
+  color: var(--color-text-dark);
+}
+
+.button-outline-active {
+  background-color: var(--color-background-light);
+  border: 1px solid var(--color-basic-accent);
+  color: var(--color-text-dark);
+}
+
+.button-outline-pressed {
+  background-color: var(--color-basic-secondary);
+  border: 1px solid var(--color-basic-accent);
+  color: var(--color-text-dark);
+}
+
+.button-outline-disabled {
+  background-color: var(--color-states-disable);
+  border: 1px solid var(--color-lines-gray);
+  color: var(--color-basic-gray);
+  cursor: not-allowed;
+}
+
+/* Button Variants - Ghost */
+.button-ghost-default {
+  background-color: transparent;
+  color: var(--color-text-dark);
+}
+
+.button-ghost-default:hover {
+  background-color: var(--color-basic-secondary);
+}
+
+.button-ghost-hover {
+  background-color: var(--color-basic-secondary);
+  color: var(--color-text-dark);
+}
+
+.button-ghost-active {
+  background-color: var(--color-background-accent-light);
+  color: var(--color-text-dark);
+}
+
+.button-ghost-pressed {
+  background-color: var(--color-basic-secondary);
+  color: var(--color-text-dark);
+}
+
+.button-ghost-disabled {
+  background-color: transparent;
+  color: var(--color-basic-gray);
+  cursor: not-allowed;
+}
+
+/* Button Variants - Primary / Basic Accent */
+.button-primary-default {
+  background-color: var(--colors-button-bg-primary, #3333cc);
+  color: var(--colors-button-label-primary, #ffffff);
+  border: none;
+}
+
+.button-primary-default:hover {
+  background-color: var(--color-basic-accent-hover);
+}
+
+.button-primary-hover {
+  background-color: var(--color-basic-accent-hover);
+  color: var(--colors-button-label-primary, #ffffff);
+}
+
+.button-primary-active {
+  background-color: var(--colors-button-bg-primary, #3333cc);
+  border: 1px solid var(--colors-button-label-primary, #ffffff);
+  color: var(--colors-button-label-primary, #ffffff);
+}
+
+.button-primary-pressed {
+  background-color: var(--colors-button-bg-primary, #3333cc);
+  border: 1px solid var(--colors-button-label-primary, #ffffff);
+  color: var(--colors-button-label-primary, #ffffff);
+}
+
+.button-primary-disabled {
+  background-color: var(--color-basic-accent-disabled);
+  color: var(--colors-text-secondary, #949494);
+  cursor: not-allowed;
+}
+
+/* Button Variants - Secondary / Basic Secondary */
+.button-secondary-default {
+  background-color: var(--colors-button-bg-secondary, #eff4ff);
+  color: var(--colors-button-label-secondary, #000033);
+}
+
+.button-secondary-default:hover {
+  background-color: var(--color-basic-secondary-hover);
+}
+
+.button-secondary-hover {
+  background-color: var(--color-basic-secondary-hover);
+  color: var(--colors-button-label-secondary, #000033);
+}
+
+.button-secondary-active {
+  background-color: var(--colors-surface, #ffffff);
+  border: 1px solid var(--colors-button-label-secondary, #000033);
+  color: var(--colors-button-label-secondary, #000033);
+}
+
+.button-secondary-pressed {
+  background-color: var(--colors-surface, #ffffff);
+  border: 1px solid var(--colors-button-label-secondary, #000033);
+  color: var(--colors-button-label-secondary, #000033);
+}
+
+.button-secondary-disabled {
+  background-color: var(--color-states-disable);
+  color: var(--colors-text-secondary, #949494);
+  cursor: not-allowed;
+}
+
+/* Button Variants - Basic Gray */
+.button-basic-gray-default {
+  background-color: var(--color-basic-gray);
+  color: var(--color-text-light);
+}
+
+.button-basic-gray-default:hover {
+  background-color: var(--color-basic-gray-hover);
+}
+
+.button-basic-gray-hover {
+  background-color: var(--color-basic-gray-hover);
+  color: var(--color-text-light);
+}
+
+.button-basic-gray-active {
+  background-color: var(--color-basic-gray-active);
+  color: var(--color-text-light);
+}
+
+.button-basic-gray-pressed {
+  background-color: var(--color-basic-gray-pressed);
+  color: var(--color-text-light);
+}
+
+.button-basic-gray-disabled {
+  background-color: var(--color-states-disable);
+  color: var(--color-basic-gray);
+  cursor: not-allowed;
+}

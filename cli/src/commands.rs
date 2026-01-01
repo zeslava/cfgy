@@ -16,32 +16,37 @@ pub enum Commands {
         #[arg(short, long)]
         project: Option<String>,
     },
+    /// Использовать configuration по умолчанию для текущего проекта (записывается в .cfgy.yaml)
+    Use {
+        /// Имя configuration (например: dev, staging, prod)
+        configuration: String,
+    },
     /// Установить значение конфига
     Set {
         /// Ключ конфигурации
         key: String,
         /// Значение конфигурации
         value: String,
-        /// Окружение (по умолчанию: dev)
-        #[arg(short, long, default_value = "dev")]
-        env: String,
+        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        #[arg(short, long)]
+        configuration: Option<String>,
     },
     /// Получить значение конфига
     Get {
         /// Ключ конфигурации
         key: String,
-        /// Окружение (по умолчанию: dev)
-        #[arg(short, long, default_value = "dev")]
-        env: String,
+        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        #[arg(short, long)]
+        configuration: Option<String>,
         /// Формат вывода (json, yaml, env)
         #[arg(short, long, default_value = "env")]
         format: String,
     },
     /// Список всех конфигов
     List {
-        /// Окружение (по умолчанию: dev)
-        #[arg(short, long, default_value = "dev")]
-        env: String,
+        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        #[arg(short, long)]
+        configuration: Option<String>,
         /// Формат вывода (json, yaml, env)
         #[arg(short, long, default_value = "env")]
         format: String,
@@ -50,9 +55,9 @@ pub enum Commands {
     Delete {
         /// Ключ конфигурации
         key: String,
-        /// Окружение (по умолчанию: dev)
-        #[arg(short, long, default_value = "dev")]
-        env: String,
+        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        #[arg(short, long)]
+        configuration: Option<String>,
     },
     /// Запустить команду с переменными окружения из конфигов
     Run {

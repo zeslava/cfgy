@@ -2,7 +2,14 @@ use anyhow::Result;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use super::types::{AccessToken, ConfigKey, Environment, Project, User};
+use super::entities::{AccessToken, ConfigKey, Configuration, Project, User};
+
+/// Внешняя идентичность пользователя (например, ZID)
+#[derive(Debug, Clone)]
+pub struct ExternalIdentity {
+    pub provider: String,
+    pub subject: String,
+}
 
 /// Репозиторий для работы с пользователями
 #[async_trait]
@@ -10,8 +17,16 @@ pub trait UserRepository: Send + Sync {
     /// Создать нового пользователя
     async fn create(&self, email: &str, password_hash: &str) -> Result<User>;
 
+    /// Создать нового пользователя без локального пароля (SSO-only).
+    ///
+    /// Важно: `password_hash` в БД должен быть nullable.
+    async fn create_sso_user(&self, email: &str, username: &str) -> Result<User>;
+
     /// Найти пользователя по email
     async fn find_by_email(&self, email: &str) -> Result<Option<User>>;
+
+    /// Найти пользователя по username
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>>;
 
     /// Найти пользователя по ID
     async fn find_by_id(&self, id: Uuid) -> Result<Option<User>>;
@@ -21,7 +36,12 @@ pub trait UserRepository: Send + Sync {
 #[async_trait]
 pub trait ProjectRepository: Send + Sync {
     /// Создать новый проект
-    async fn create(&self, name: &str, description: Option<&str>, owner_id: Uuid) -> Result<Project>;
+    async fn create(
+        &self,
+        name: &str,
+        description: Option<&str>,
+        owner_id: Uuid,
+    ) -> Result<Project>;
 
     /// Найти проект по ID
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Project>>;
@@ -33,45 +53,59 @@ pub trait ProjectRepository: Send + Sync {
     async fn delete(&self, id: Uuid) -> Result<()>;
 
     /// Обновить проект
-    async fn update(&self, id: Uuid, name: Option<&str>, description: Option<&str>) -> Result<Project>;
+    async fn update(
+        &self,
+        id: Uuid,
+        name: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<Project>;
 }
 
-/// Репозиторий для работы с окружениями
+/// Репозиторий для работы с конфигурациями
 #[async_trait]
-pub trait EnvironmentRepository: Send + Sync {
-    /// Создать новое окружение
-    async fn create(&self, project_id: Uuid, name: &str) -> Result<Environment>;
+pub trait ConfigurationRepository: Send + Sync {
+    /// Создать новую конфигурацию
+    async fn create(&self, project_id: Uuid, name: &str) -> Result<Configuration>;
 
-    /// Найти окружение по ID
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<Environment>>;
+    /// Найти конфигурацию по ID
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<Configuration>>;
 
-    /// Найти все окружения проекта
-    async fn find_by_project(&self, project_id: Uuid) -> Result<Vec<Environment>>;
+    /// Найти все конфигурации проекта
+    async fn find_by_project(&self, project_id: Uuid) -> Result<Vec<Configuration>>;
 
-    /// Найти окружение по проекту и имени
-    async fn find_by_project_and_name(&self, project_id: Uuid, name: &str) -> Result<Option<Environment>>;
+    /// Найти конфигурацию по проекту и имени
+    async fn find_by_project_and_name(
+        &self,
+        project_id: Uuid,
+        name: &str,
+    ) -> Result<Option<Configuration>>;
 
-    /// Удалить окружение
+    /// Удалить конфигурацию
     async fn delete(&self, id: Uuid) -> Result<()>;
 }
 
-/// Репозиторий для работы с конфигурационными ключами
+/// Репозиторий для работы с параметрами
 #[async_trait]
 pub trait ConfigKeyRepository: Send + Sync {
-    /// Создать или обновить конфигурационный ключ
-    async fn upsert(&self, environment_id: Uuid, key: &str, encrypted_value: &[u8]) -> Result<ConfigKey>;
+    /// Создать или обновить параметр
+    async fn upsert(
+        &self,
+        configuration_id: Uuid,
+        key: &str,
+        encrypted_value: &[u8],
+    ) -> Result<ConfigKey>;
 
-    /// Найти конфигурационный ключ
-    async fn find(&self, environment_id: Uuid, key: &str) -> Result<Option<ConfigKey>>;
+    /// Найти параметр
+    async fn find(&self, configuration_id: Uuid, key: &str) -> Result<Option<ConfigKey>>;
 
-    /// Получить все ключи окружения
-    async fn find_all(&self, environment_id: Uuid) -> Result<Vec<ConfigKey>>;
+    /// Получить все параметры конфигурации
+    async fn find_all(&self, configuration_id: Uuid) -> Result<Vec<ConfigKey>>;
 
-    /// Удалить конфигурационный ключ
-    async fn delete(&self, environment_id: Uuid, key: &str) -> Result<bool>;
+    /// Удалить параметр
+    async fn delete(&self, configuration_id: Uuid, key: &str) -> Result<bool>;
 
-    /// Удалить все ключи окружения
-    async fn delete_all(&self, environment_id: Uuid) -> Result<()>;
+    /// Удалить все параметры конфигурации
+    async fn delete_all(&self, configuration_id: Uuid) -> Result<()>;
 }
 
 /// Репозиторий для работы с API токенами
@@ -98,4 +132,14 @@ pub trait AccessTokenRepository: Send + Sync {
 
     /// Удалить токен
     async fn delete(&self, id: Uuid) -> Result<()>;
+}
+
+/// Репозиторий для привязки внешних идентичностей (provider+subject -> user_id)
+#[async_trait]
+pub trait ExternalIdentityRepository: Send + Sync {
+    /// Найти пользователя по внешней идентичности (provider + subject)
+    async fn find_user_id(&self, provider: &str, subject: &str) -> Result<Option<Uuid>>;
+
+    /// Привязать внешнюю идентичность к пользователю
+    async fn link_user(&self, user_id: Uuid, provider: &str, subject: &str) -> Result<()>;
 }

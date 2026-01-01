@@ -1,0 +1,116 @@
+/* Projects Page Styles */
+
+.projects-page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+}
+
+.projects-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.projects-title {
+  font-family: "Istok Web", sans-serif;
+  font-weight: 700;
+  font-size: 40px;
+  color: var(--color-text-dark);
+}
+
+.projects-error {
+  color: var(--color-states-error);
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.projects-create-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.projects-form {
+  width: 100%;
+}
+
+.projects-input-wrapper {
+  border: 2px solid var(--color-lines-gray);
+  border-radius: 4px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  width: 100%;
+  height: 51px;
+  background-color: var(--colors-surface, #ffffff);
+}
+
+.projects-input {
+  flex: 1;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background-color: transparent;
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--colors-text-secondary, #949494);
+  padding: 0;
+  height: 100%;
+  min-width: 0;
+}
+
+.projects-input::placeholder {
+  color: var(--colors-text-secondary, #949494);
+}
+
+.projects-input:focus {
+  box-shadow: none;
+}
+
+.projects-divider {
+  height: 0;
+  border-top: 2px solid var(--color-lines-gray);
+  width: 100%;
+}
+
+.projects-add-button {
+  height: 38px;
+}
+
+.projects-delete-button {
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+}
+
+.projects-item-link {
+  display: block;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+/* Переопределение DataTable для страницы проектов */
+.projects-page .data-table-row-divider {
+  height: 0;
+  border-top: 2px solid var(--color-lines-gray);
+  background: transparent;
+}
+
+/* Первая ячейка растягивается, чтобы кнопка была в конце строки */
+.projects-page .data-table-cell:first-child {
+  width: auto;
+  flex: 1;
+}
+
+/* Кнопка удаления справа в конце строки */
+.projects-page .data-table-actions {
+  margin-left: auto;
+}

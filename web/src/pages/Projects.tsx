@@ -1,20 +1,68 @@
 // Страница списка проектов
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { projectsApi } from "../services/api";
 import type { Project } from "../services/api";
+import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { useToast } from "../contexts/ToastContext";
+import { TrashIcon } from "../components/ui/Icons";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableRow,
+  DataTableCell,
+  DataTableActions,
+  DataTableEmpty,
+} from "../components/ui/DataTable";
+import { sortByString } from "../utils/sort";
+import "@/styles/pages/projects.css";
+import "@/styles/components/data-table.css";
 
 const Projects: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [formData, setFormData] = useState({ name: "", description: "" });
+  const [projectName, setProjectName] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadProjects();
   }, []);
+
+  // Закрытие формы при клике вне компонента
+  useEffect(() => {
+    if (!showCreateForm) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      // Не закрываем, если клик был на форме или на кнопке "Добавить проект"
+      if (
+        formRef.current?.contains(target) ||
+        target.closest("[data-add-project-button]")
+      ) {
+        return;
+      }
+
+      // Закрываем форму и очищаем поле
+      setShowCreateForm(false);
+      setProjectName("");
+      setError("");
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showCreateForm]);
 
   const loadProjects = async () => {
     setIsLoading(true);
@@ -32,27 +80,41 @@ const Projects: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (!projectName.trim()) {
+      setError("Название проекта обязательно");
+      return;
+    }
     try {
       const project = await projectsApi.create({
-        name: formData.name,
-        description: formData.description || undefined,
+        name: projectName.trim(),
       });
       setShowCreateForm(false);
-      setFormData({ name: "", description: "" });
+      setProjectName("");
+      showSuccess(`Проект "${project.name}" создан`);
       await loadProjects();
       navigate(`/projects/${project.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка создания проекта");
+      const message =
+        err instanceof Error ? err.message : "Ошибка создания проекта";
+      setError(message);
+      showError(message);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Удалить проект "${name}"? Это действие необратимо.`)) return;
+    setDeleteConfirm({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
     try {
-      await projectsApi.delete(id);
+      await projectsApi.delete(deleteConfirm.id);
+      showSuccess(`Проект "${deleteConfirm.name}" удалён`);
       await loadProjects();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Ошибка удаления проекта");
+      showError(err instanceof Error ? err.message : "Ошибка удаления проекта");
+    } finally {
+      setDeleteConfirm(null);
     }
   };
 
@@ -61,156 +123,99 @@ const Projects: React.FC = () => {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Проекты</h1>
-        <button
-          className="bg-blue-600 text-white px-4 py-2 rounded cursor-pointer text-sm font-medium transition hover:bg-blue-700"
-          onClick={() => setShowCreateForm(true)}
+    <div className="projects-page">
+      <div className="projects-header">
+        <div className="projects-title">Мои проекты</div>
+        <Button
+          variant="basic-secondary"
+          size="medium-text"
+          className="projects-add-button"
+          data-add-project-button
+          onClick={() => {
+            setShowCreateForm(true);
+            setError("");
+          }}
         >
-          Создать проект
-        </button>
+          Добавить проект
+        </Button>
       </div>
 
+      {error && !showCreateForm && (
+        <div className="projects-error">Ошибка: {error}</div>
+      )}
+
       {showCreateForm && (
-        <div className="bg-white rounded-lg p-6 shadow mb-6">
-          <h2 className="text-xl font-semibold mb-4">Создать новый проект</h2>
-          <form onSubmit={handleCreate}>
-            <div className="mb-4">
-              <label
-                htmlFor="project-name"
-                className="block mb-2 font-medium text-gray-800"
-              >
-                Название
-              </label>
+        <div ref={formRef} className="projects-create-wrapper">
+          <form onSubmit={handleCreate} className="projects-form">
+            <div className="projects-input-wrapper">
               <input
-                id="project-name"
                 type="text"
-                className="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                required
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
                 placeholder="Название проекта"
+                className="projects-input"
+                autoFocus
+                required
               />
-            </div>
-            <div className="mb-4">
-              <label
-                htmlFor="project-description"
-                className="block mb-2 font-medium text-gray-800"
-              >
-                Описание (необязательно)
-              </label>
-              <textarea
-                id="project-description"
-                className="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                rows={3}
-                placeholder="Описание проекта"
-              />
-            </div>
-            {error && <div className="text-red-600 text-sm mt-1">{error}</div>}
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded cursor-pointer text-sm font-medium transition hover:bg-blue-700"
-              >
-                Создать
-              </button>
-              <button
-                type="button"
-                className="bg-gray-500 text-white px-4 py-2 rounded cursor-pointer text-sm font-medium transition hover:bg-gray-600"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  setFormData({ name: "", description: "" });
-                  setError("");
-                }}
-              >
-                Отмена
-              </button>
+              <Button type="submit" variant="basic-accent" size="small-text">
+                Сохранить
+              </Button>
             </div>
           </form>
+          <div className="projects-divider" />
         </div>
       )}
 
-      {error && !showCreateForm && (
-        <div className="text-red-600 mb-4">Ошибка: {error}</div>
-      )}
-
-      {projects.length === 0 ? (
-        <div className="bg-white rounded-lg p-6 shadow">
-          <p>Проекты не найдены. Создайте первый проект.</p>
-        </div>
-      ) : (
-        <div className="overflow-hidden">
-          <table className="w-full border-collapse bg-white rounded-lg overflow-hidden shadow">
-            <thead>
-              <tr>
-                <th className="px-3 py-3 text-left border-b border-gray-200 bg-gray-50 font-semibold text-gray-800">
-                  Название
-                </th>
-                <th className="px-3 py-3 text-left border-b border-gray-200 bg-gray-50 font-semibold text-gray-800">
-                  Описание
-                </th>
-                <th className="px-3 py-3 text-left border-b border-gray-200 bg-gray-50 font-semibold text-gray-800">
-                  Создан
-                </th>
-                <th className="px-3 py-3 text-left border-b border-gray-200 bg-gray-50 font-semibold text-gray-800">
-                  Действия
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr
-                  key={project.id}
-                  className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                >
-                  <td className="px-3 py-3 text-left border-b border-gray-200">
-                    <span className="text-blue-600 hover:underline">
-                      {project.name}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-left border-b border-gray-200">
-                    {project.description || "-"}
-                  </td>
-                  <td className="px-3 py-3 text-left border-b border-gray-200">
-                    {new Date(project.created_at).toLocaleDateString("ru-RU")}
-                  </td>
-                  <td
-                    className="px-3 py-3 text-left border-b border-gray-200"
+      <DataTable>
+        <DataTableBody>
+          {projects.length === 0 ? (
+            <DataTableEmpty>
+              Проекты не найдены. Создайте первый проект.
+            </DataTableEmpty>
+          ) : (
+            sortByString(projects, (p) => p.name).map((project) => (
+              <DataTableRow
+                key={project.id}
+                onClick={() => navigate(`/projects/${project.id}`)}
+              >
+                <DataTableCell>
+                  <Link
+                    to={`/projects/${project.id}`}
+                    className="projects-item-link text-style-regular-16"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex gap-2">
-                      <Link
-                        to={`/projects/${project.id}/secrets`}
-                        className="bg-gray-500 text-white px-4 py-2 rounded cursor-pointer text-sm font-medium transition hover:bg-gray-600 no-underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Секреты
-                      </Link>
-                      <button
-                        className="bg-red-600 text-white px-4 py-2 rounded cursor-pointer text-sm font-medium transition hover:bg-red-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(project.id, project.name);
-                        }}
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    {project.name}
+                  </Link>
+                </DataTableCell>
+                <DataTableActions>
+                  <Button
+                    variant="basic-secondary"
+                    size="small-icon"
+                    className="projects-delete-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(project.id, project.name);
+                    }}
+                  >
+                    <TrashIcon className="size-6" />
+                  </Button>
+                </DataTableActions>
+              </DataTableRow>
+            ))
+          )}
+        </DataTableBody>
+      </DataTable>
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        title="Удаление проекта"
+        message={`Вы уверены, что хотите удалить проект "${deleteConfirm?.name}"? Это действие необратимо.`}
+        confirmLabel="Удалить"
+        cancelLabel="Отмена"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 };

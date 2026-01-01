@@ -1,4 +1,4 @@
 pub mod projects;
-pub mod secrets;
+pub mod parameters;
 pub mod auth;
 

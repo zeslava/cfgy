@@ -1,80 +1,74 @@
-// Контекст для управления аутентификацией
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { ReactNode } from 'react';
-import { authApi } from '../services/api';
-import type { LoginResponse } from '../services/api';
-
-interface AuthContextType {
-  user: LoginResponse | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  isAuthenticated: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth должен использоваться внутри AuthProvider');
-  }
-  return context;
-};
+// Контекст для управления аутентификацией (cookie-based сессия)
+//
+// Важно для React Fast Refresh:
+// файл должен экспортировать только компоненты, поэтому контекст вынесен в отдельный модуль.
+import React, { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { authApi } from "../services/api";
+import type { LoginResponse } from "../services/api";
+import { AuthContext } from "./AuthContextValue";
+import type { AuthContextType } from "./AuthContextValue";
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<LoginResponse | null>(null);
+  const [user, setUser] = useState<
+    (LoginResponse & { username?: string | null }) | null
+  >(null);
+  // Для cookie-based сессии мы не можем синхронно "прочитать" токен из хранилища.
+  // Поэтому при старте (и после SSO-redirect) подтягиваем пользователя через /api/auth/me.
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Проверяем, есть ли сохраненный токен
-    const token = localStorage.getItem('session_token');
-    const userStr = localStorage.getItem('user');
+    let cancelled = false;
 
-    if (token && userStr) {
+    const bootstrap = async () => {
+      setIsLoading(true);
       try {
-        const userData: LoginResponse = JSON.parse(userStr);
-        setUser(userData);
-      } catch (e) {
-        // Если данные повреждены, очищаем
-        localStorage.removeItem('session_token');
-        localStorage.removeItem('user');
+        const me = await authApi.me();
+        if (!cancelled) {
+          setUser(me);
+        }
+      } catch {
+        // Нет сессии / cookie невалидна — просто считаем пользователя неаутентифицированным
+        if (!cancelled) {
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
-    }
-    setIsLoading(false);
+    };
+
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
+    // Сервер устанавливает httpOnly cookie сессии; session_token в UI не храним
     const response = await authApi.login({ email, password });
-    if (response.session_token) {
-      localStorage.setItem('session_token', response.session_token);
-      localStorage.setItem('user', JSON.stringify(response));
-      setUser(response);
-    } else {
-      throw new Error('Не получен session token');
-    }
+    setUser(response);
   };
 
   const register = async (email: string, password: string) => {
+    // Сервер устанавливает httpOnly cookie сессии; session_token в UI не храним
     const response = await authApi.register({ email, password });
-    if (response.session_token) {
-      localStorage.setItem('session_token', response.session_token);
-      localStorage.setItem('user', JSON.stringify(response));
-      setUser(response);
-    } else {
-      throw new Error('Не получен session token');
-    }
+    setUser(response);
   };
 
-  const logout = () => {
-    localStorage.removeItem('session_token');
-    localStorage.removeItem('user');
-    setUser(null);
+  const logout = async () => {
+    // Очищаем сессию на сервере (httpOnly cookie) + локальное состояние UI
+    try {
+      await authApi.logout();
+    } finally {
+      setUser(null);
+    }
   };
 
   const value: AuthContextType = {
@@ -83,9 +77,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
-    isAuthenticated: !!user && !!localStorage.getItem('session_token'),
+    // Для cookie-based схемы считаем аутентификацию подтверждённой после /api/auth/me
+    isAuthenticated: !!user,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

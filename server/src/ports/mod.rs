@@ -1,7 +1,6 @@
-pub mod types;
-pub mod repositories;
 pub mod crypto;
+pub mod entities;
+pub mod repositories;
 
-pub use repositories::*;
 pub use crypto::CryptoService;
-
+pub use repositories::*;

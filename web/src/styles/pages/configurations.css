@@ -1,0 +1,139 @@
+/* Configurations Page Styles */
+
+.configurations-page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+}
+
+.configurations-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.configurations-title-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.configurations-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.configurations-title {
+  font-family: "Istok Web", sans-serif;
+  font-weight: 700;
+  font-size: 40px;
+  color: var(--color-text-dark);
+}
+
+.configurations-description {
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--color-basic-gray);
+}
+
+.configurations-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.configurations-form-input {
+  font-family: "Istok Web", sans-serif;
+  font-weight: 700;
+  font-size: 40px;
+  color: var(--color-text-dark);
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0;
+}
+
+.configurations-form-textarea {
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--color-basic-gray);
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  resize: none;
+}
+
+.configurations-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.configurations-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.config-create-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 20px;
+}
+
+.config-create-form {
+  width: 100%;
+}
+
+.config-create-input-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  height: 51px;
+  padding: 8px;
+  border: 2px solid var(--color-lines-gray);
+  border-radius: 4px;
+  background: var(--colors-surface, #ffffff);
+}
+
+.config-create-input {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--color-text-dark);
+  padding: 0;
+}
+
+.config-create-input::placeholder {
+  color: var(--colors-text-secondary, #949494);
+}
+
+.config-create-divider {
+  width: 100%;
+  height: 0;
+  border-top: 2px solid var(--color-lines-gray);
+}
+
+.configurations-item-link {
+  display: block;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}

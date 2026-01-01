@@ -4,19 +4,19 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::ports::types::{AccessToken, ConfigKey, Environment, Project, User};
+use crate::ports::entities::{AccessToken, ConfigKey, Configuration, Project, User};
 use crate::ports::{
-    AccessTokenRepository, ConfigKeyRepository, EnvironmentRepository, ProjectRepository,
-    UserRepository,
+    AccessTokenRepository, ConfigKeyRepository, ConfigurationRepository,
+    ExternalIdentityRepository, ProjectRepository, UserRepository,
 };
 
 /// Структура, объединяющая все репозитории Postgres
 #[derive(Clone)]
-pub struct PostgresRepositories {
+pub struct PostgresUserRepository {
     pool: PgPool,
 }
 
-impl PostgresRepositories {
+impl PostgresUserRepository {
     /// Создать новую структуру репозиториев
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
@@ -24,18 +24,17 @@ impl PostgresRepositories {
 }
 
 #[async_trait]
-impl UserRepository for PostgresRepositories {
+impl UserRepository for PostgresUserRepository {
     async fn create(&self, email: &str, password_hash: &str) -> Result<User> {
-        let user = sqlx::query_as!(
-            User,
+        let user = sqlx::query_as::<_, User>(
             r#"
             INSERT INTO users (email, password_hash)
             VALUES ($1, $2)
-            RETURNING id, email, password_hash, created_at, updated_at
+            RETURNING id, email, username, password_hash, created_at, updated_at
             "#,
-            email,
-            password_hash
         )
+        .bind(email)
+        .bind(password_hash)
         .fetch_one(&self.pool)
         .await
         .context("Не удалось создать пользователя")?;
@@ -43,16 +42,32 @@ impl UserRepository for PostgresRepositories {
         Ok(user)
     }
 
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
-        let user = sqlx::query_as!(
-            User,
+    async fn create_sso_user(&self, email: &str, username: &str) -> Result<User> {
+        let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, created_at, updated_at
+            INSERT INTO users (email, username, password_hash)
+            VALUES ($1, $2, NULL)
+            RETURNING id, email, username, password_hash, created_at, updated_at
+            "#,
+        )
+        .bind(email)
+        .bind(username)
+        .fetch_one(&self.pool)
+        .await
+        .context("Не удалось создать SSO пользователя")?;
+
+        Ok(user)
+    }
+
+    async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, email, username, password_hash, created_at, updated_at
             FROM users
             WHERE email = $1
             "#,
-            email
         )
+        .bind(email)
         .fetch_optional(&self.pool)
         .await
         .context("Не удалось найти пользователя по email")?;
@@ -60,16 +75,31 @@ impl UserRepository for PostgresRepositories {
         Ok(user)
     }
 
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<User>> {
-        let user = sqlx::query_as!(
-            User,
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, created_at, updated_at
+            SELECT id, email, username, password_hash, created_at, updated_at
+            FROM users
+            WHERE username = $1
+            "#,
+        )
+        .bind(username)
+        .fetch_optional(&self.pool)
+        .await
+        .context("Не удалось найти пользователя по username")?;
+
+        Ok(user)
+    }
+
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, email, username, password_hash, created_at, updated_at
             FROM users
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .fetch_optional(&self.pool)
         .await
         .context("Не удалось найти пользователя по ID")?;
@@ -79,19 +109,61 @@ impl UserRepository for PostgresRepositories {
 }
 
 #[async_trait]
-impl ProjectRepository for PostgresRepositories {
-    async fn create(&self, name: &str, description: Option<&str>, owner_id: Uuid) -> Result<Project> {
-        let project = sqlx::query_as!(
-            Project,
+impl ExternalIdentityRepository for PostgresUserRepository {
+    async fn find_user_id(&self, provider: &str, subject: &str) -> Result<Option<Uuid>> {
+        let row = sqlx::query_as::<_, (Uuid,)>(
+            r#"
+            SELECT user_id
+            FROM external_identities
+            WHERE provider = $1 AND subject = $2
+            "#,
+        )
+        .bind(provider)
+        .bind(subject)
+        .fetch_optional(&self.pool)
+        .await
+        .context("Не удалось найти пользователя по external identity")?;
+
+        Ok(row.map(|(user_id,)| user_id))
+    }
+
+    async fn link_user(&self, user_id: Uuid, provider: &str, subject: &str) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO external_identities (user_id, provider, subject)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (provider, subject) DO NOTHING
+            "#,
+        )
+        .bind(user_id)
+        .bind(provider)
+        .bind(subject)
+        .execute(&self.pool)
+        .await
+        .context("Не удалось привязать external identity к пользователю")?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ProjectRepository for PostgresUserRepository {
+    async fn create(
+        &self,
+        name: &str,
+        description: Option<&str>,
+        owner_id: Uuid,
+    ) -> Result<Project> {
+        let project = sqlx::query_as::<_, Project>(
             r#"
             INSERT INTO projects (name, description, owner_id)
             VALUES ($1, $2, $3)
             RETURNING id, name, description, owner_id, created_at, updated_at
             "#,
-            name,
-            description,
-            owner_id
         )
+        .bind(name)
+        .bind(description)
+        .bind(owner_id)
         .fetch_one(&self.pool)
         .await
         .context("Не удалось создать проект")?;
@@ -100,15 +172,14 @@ impl ProjectRepository for PostgresRepositories {
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Project>> {
-        let project = sqlx::query_as!(
-            Project,
+        let project = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, description, owner_id, created_at, updated_at
             FROM projects
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .fetch_optional(&self.pool)
         .await
         .context("Не удалось найти проект по ID")?;
@@ -117,16 +188,15 @@ impl ProjectRepository for PostgresRepositories {
     }
 
     async fn find_by_owner(&self, owner_id: Uuid) -> Result<Vec<Project>> {
-        let projects = sqlx::query_as!(
-            Project,
+        let projects = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, description, owner_id, created_at, updated_at
             FROM projects
             WHERE owner_id = $1
             ORDER BY created_at DESC
             "#,
-            owner_id
         )
+        .bind(owner_id)
         .fetch_all(&self.pool)
         .await
         .context("Не удалось найти проекты пользователя")?;
@@ -135,7 +205,8 @@ impl ProjectRepository for PostgresRepositories {
     }
 
     async fn delete(&self, id: Uuid) -> Result<()> {
-        sqlx::query!("DELETE FROM projects WHERE id = $1", id)
+        sqlx::query("DELETE FROM projects WHERE id = $1")
+            .bind(id)
             .execute(&self.pool)
             .await
             .context("Не удалось удалить проект")?;
@@ -143,48 +214,50 @@ impl ProjectRepository for PostgresRepositories {
         Ok(())
     }
 
-    async fn update(&self, id: Uuid, name: Option<&str>, description: Option<&str>) -> Result<Project> {
+    async fn update(
+        &self,
+        id: Uuid,
+        name: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<Project> {
         let project = if name.is_some() && description.is_some() {
-            sqlx::query_as!(
-                Project,
+            sqlx::query_as::<_, Project>(
                 r#"
                 UPDATE projects
                 SET name = $2, description = $3
                 WHERE id = $1
                 RETURNING id, name, description, owner_id, created_at, updated_at
                 "#,
-                id,
-                name,
-                description
             )
+            .bind(id)
+            .bind(name)
+            .bind(description)
             .fetch_one(&self.pool)
             .await?
         } else if name.is_some() {
-            sqlx::query_as!(
-                Project,
+            sqlx::query_as::<_, Project>(
                 r#"
                 UPDATE projects
                 SET name = $2
                 WHERE id = $1
                 RETURNING id, name, description, owner_id, created_at, updated_at
                 "#,
-                id,
-                name
             )
+            .bind(id)
+            .bind(name)
             .fetch_one(&self.pool)
             .await?
         } else if description.is_some() {
-            sqlx::query_as!(
-                Project,
+            sqlx::query_as::<_, Project>(
                 r#"
                 UPDATE projects
                 SET description = $2
                 WHERE id = $1
                 RETURNING id, name, description, owner_id, created_at, updated_at
                 "#,
-                id,
-                description
             )
+            .bind(id)
+            .bind(description)
             .fetch_one(&self.pool)
             .await?
         } else {
@@ -196,172 +269,175 @@ impl ProjectRepository for PostgresRepositories {
 }
 
 #[async_trait]
-impl EnvironmentRepository for PostgresRepositories {
-    async fn create(&self, project_id: Uuid, name: &str) -> Result<Environment> {
-        let env = sqlx::query_as!(
-            Environment,
+impl ConfigurationRepository for PostgresUserRepository {
+    async fn create(&self, project_id: Uuid, name: &str) -> Result<Configuration> {
+        let config = sqlx::query_as::<_, Configuration>(
             r#"
-            INSERT INTO environments (project_id, name)
+            INSERT INTO configurations (project_id, name)
             VALUES ($1, $2)
             RETURNING id, project_id, name, created_at, updated_at
             "#,
-            project_id,
-            name
         )
+        .bind(project_id)
+        .bind(name)
         .fetch_one(&self.pool)
         .await
-        .context("Не удалось создать окружение")?;
+        .context("Не удалось создать конфигурацию")?;
 
-        Ok(env)
+        Ok(config)
     }
 
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<Environment>> {
-        let env = sqlx::query_as!(
-            Environment,
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<Configuration>> {
+        let config = sqlx::query_as::<_, Configuration>(
             r#"
             SELECT id, project_id, name, created_at, updated_at
-            FROM environments
+            FROM configurations
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .context("Не удалось найти окружение по ID")?;
+        .context("Не удалось найти конфигурацию по ID")?;
 
-        Ok(env)
+        Ok(config)
     }
 
-    async fn find_by_project(&self, project_id: Uuid) -> Result<Vec<Environment>> {
-        let envs = sqlx::query_as!(
-            Environment,
+    async fn find_by_project(&self, project_id: Uuid) -> Result<Vec<Configuration>> {
+        let configs = sqlx::query_as::<_, Configuration>(
             r#"
             SELECT id, project_id, name, created_at, updated_at
-            FROM environments
+            FROM configurations
             WHERE project_id = $1
             ORDER BY name
             "#,
-            project_id
         )
+        .bind(project_id)
         .fetch_all(&self.pool)
         .await
-        .context("Не удалось найти окружения проекта")?;
+        .context("Не удалось найти конфигурации проекта")?;
 
-        Ok(envs)
+        Ok(configs)
     }
 
-    async fn find_by_project_and_name(&self, project_id: Uuid, name: &str) -> Result<Option<Environment>> {
-        let env = sqlx::query_as!(
-            Environment,
+    async fn find_by_project_and_name(
+        &self,
+        project_id: Uuid,
+        name: &str,
+    ) -> Result<Option<Configuration>> {
+        let config = sqlx::query_as::<_, Configuration>(
             r#"
             SELECT id, project_id, name, created_at, updated_at
-            FROM environments
+            FROM configurations
             WHERE project_id = $1 AND name = $2
             "#,
-            project_id,
-            name
         )
+        .bind(project_id)
+        .bind(name)
         .fetch_optional(&self.pool)
         .await
-        .context("Не удалось найти окружение по проекту и имени")?;
+        .context("Не удалось найти конфигурацию по проекту и имени")?;
 
-        Ok(env)
+        Ok(config)
     }
 
     async fn delete(&self, id: Uuid) -> Result<()> {
-        sqlx::query!("DELETE FROM environments WHERE id = $1", id)
+        sqlx::query("DELETE FROM configurations WHERE id = $1")
+            .bind(id)
             .execute(&self.pool)
             .await
-            .context("Не удалось удалить окружение")?;
+            .context("Не удалось удалить конфигурацию")?;
 
         Ok(())
     }
 }
 
 #[async_trait]
-impl ConfigKeyRepository for PostgresRepositories {
-    async fn upsert(&self, environment_id: Uuid, key: &str, encrypted_value: &[u8]) -> Result<ConfigKey> {
-        let config_key = sqlx::query_as!(
-            ConfigKey,
+impl ConfigKeyRepository for PostgresUserRepository {
+    async fn upsert(
+        &self,
+        configuration_id: Uuid,
+        key: &str,
+        encrypted_value: &[u8],
+    ) -> Result<ConfigKey> {
+        let config_key = sqlx::query_as::<_, ConfigKey>(
             r#"
-            INSERT INTO config_keys (environment_id, key, encrypted_value)
+            INSERT INTO config_keys (configuration_id, key, encrypted_value)
             VALUES ($1, $2, $3)
-            ON CONFLICT (environment_id, key)
+            ON CONFLICT (configuration_id, key)
             DO UPDATE SET encrypted_value = $3, updated_at = CURRENT_TIMESTAMP
-            RETURNING id, environment_id, key, encrypted_value, created_at, updated_at
+            RETURNING id, configuration_id, key, encrypted_value, created_at, updated_at
             "#,
-            environment_id,
-            key,
-            encrypted_value as &[u8]
         )
+        .bind(configuration_id)
+        .bind(key)
+        .bind(encrypted_value)
         .fetch_one(&self.pool)
         .await
-        .context("Не удалось создать или обновить конфигурационный ключ")?;
+        .context("Не удалось создать или обновить параметр")?;
 
         Ok(config_key)
     }
 
-    async fn find(&self, environment_id: Uuid, key: &str) -> Result<Option<ConfigKey>> {
-        let config_key = sqlx::query_as!(
-            ConfigKey,
+    async fn find(&self, configuration_id: Uuid, key: &str) -> Result<Option<ConfigKey>> {
+        let config_key = sqlx::query_as::<_, ConfigKey>(
             r#"
-            SELECT id, environment_id, key, encrypted_value, created_at, updated_at
+            SELECT id, configuration_id, key, encrypted_value, created_at, updated_at
             FROM config_keys
-            WHERE environment_id = $1 AND key = $2
+            WHERE configuration_id = $1 AND key = $2
             "#,
-            environment_id,
-            key
         )
+        .bind(configuration_id)
+        .bind(key)
         .fetch_optional(&self.pool)
         .await
-        .context("Не удалось найти конфигурационный ключ")?;
+        .context("Не удалось найти параметр")?;
 
         Ok(config_key)
     }
 
-    async fn find_all(&self, environment_id: Uuid) -> Result<Vec<ConfigKey>> {
-        let config_keys = sqlx::query_as!(
-            ConfigKey,
+    async fn find_all(&self, configuration_id: Uuid) -> Result<Vec<ConfigKey>> {
+        let config_keys = sqlx::query_as::<_, ConfigKey>(
             r#"
-            SELECT id, environment_id, key, encrypted_value, created_at, updated_at
+            SELECT id, configuration_id, key, encrypted_value, created_at, updated_at
             FROM config_keys
-            WHERE environment_id = $1
+            WHERE configuration_id = $1
             ORDER BY key
             "#,
-            environment_id
         )
+        .bind(configuration_id)
         .fetch_all(&self.pool)
         .await
-        .context("Не удалось получить все конфигурационные ключи")?;
+        .context("Не удалось получить все параметры")?;
 
         Ok(config_keys)
     }
 
-    async fn delete(&self, environment_id: Uuid, key: &str) -> Result<bool> {
-        let result = sqlx::query!(
-            "DELETE FROM config_keys WHERE environment_id = $1 AND key = $2",
-            environment_id,
-            key
-        )
-        .execute(&self.pool)
-        .await
-        .context("Не удалось удалить конфигурационный ключ")?;
+    async fn delete(&self, configuration_id: Uuid, key: &str) -> Result<bool> {
+        let result =
+            sqlx::query("DELETE FROM config_keys WHERE configuration_id = $1 AND key = $2")
+                .bind(configuration_id)
+                .bind(key)
+                .execute(&self.pool)
+                .await
+                .context("Не удалось удалить параметр")?;
 
         Ok(result.rows_affected() > 0)
     }
 
-    async fn delete_all(&self, environment_id: Uuid) -> Result<()> {
-        sqlx::query!("DELETE FROM config_keys WHERE environment_id = $1", environment_id)
+    async fn delete_all(&self, configuration_id: Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM config_keys WHERE configuration_id = $1")
+            .bind(configuration_id)
             .execute(&self.pool)
             .await
-            .context("Не удалось удалить все конфигурационные ключи")?;
+            .context("Не удалось удалить все параметры")?;
 
         Ok(())
     }
 }
 
 #[async_trait]
-impl AccessTokenRepository for PostgresRepositories {
+impl AccessTokenRepository for PostgresUserRepository {
     async fn create(
         &self,
         user_id: Uuid,
@@ -370,19 +446,18 @@ impl AccessTokenRepository for PostgresRepositories {
         token_hash: &str,
         expires_at: Option<DateTime<Utc>>,
     ) -> Result<AccessToken> {
-        let token = sqlx::query_as!(
-            AccessToken,
+        let token = sqlx::query_as::<_, AccessToken>(
             r#"
             INSERT INTO access_tokens (user_id, project_id, name, token_hash, expires_at)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id, user_id, project_id, name, token_hash, expires_at, created_at, last_used_at
             "#,
-            user_id,
-            project_id,
-            name,
-            token_hash,
-            expires_at
         )
+        .bind(user_id)
+        .bind(project_id)
+        .bind(name)
+        .bind(token_hash)
+        .bind(expires_at)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| {
@@ -393,15 +468,14 @@ impl AccessTokenRepository for PostgresRepositories {
     }
 
     async fn find_by_hash(&self, token_hash: &str) -> Result<Option<AccessToken>> {
-        let token = sqlx::query_as!(
-            AccessToken,
+        let token = sqlx::query_as::<_, AccessToken>(
             r#"
             SELECT id, user_id, project_id, name, token_hash, expires_at, created_at, last_used_at
             FROM access_tokens
             WHERE token_hash = $1
             "#,
-            token_hash
         )
+        .bind(token_hash)
         .fetch_optional(&self.pool)
         .await
         .context("Не удалось найти токен по хэшу")?;
@@ -410,16 +484,15 @@ impl AccessTokenRepository for PostgresRepositories {
     }
 
     async fn find_by_user(&self, user_id: Uuid) -> Result<Vec<AccessToken>> {
-        let tokens = sqlx::query_as!(
-            AccessToken,
+        let tokens = sqlx::query_as::<_, AccessToken>(
             r#"
             SELECT id, user_id, project_id, name, token_hash, expires_at, created_at, last_used_at
             FROM access_tokens
             WHERE user_id = $1
             ORDER BY created_at DESC
             "#,
-            user_id
         )
+        .bind(user_id)
         .fetch_all(&self.pool)
         .await
         .context("Не удалось получить список токенов пользователя")?;
@@ -428,19 +501,18 @@ impl AccessTokenRepository for PostgresRepositories {
     }
 
     async fn update_last_used(&self, id: Uuid) -> Result<()> {
-        sqlx::query!(
-            "UPDATE access_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1",
-            id
-        )
-        .execute(&self.pool)
-        .await
-        .context("Не удалось обновить время последнего использования токена")?;
+        sqlx::query("UPDATE access_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .context("Не удалось обновить время последнего использования токена")?;
 
         Ok(())
     }
 
     async fn delete(&self, id: Uuid) -> Result<()> {
-        sqlx::query!("DELETE FROM access_tokens WHERE id = $1", id)
+        sqlx::query("DELETE FROM access_tokens WHERE id = $1")
+            .bind(id)
             .execute(&self.pool)
             .await
             .context("Не удалось удалить токен")?;
@@ -448,4 +520,3 @@ impl AccessTokenRepository for PostgresRepositories {
         Ok(())
     }
 }
-

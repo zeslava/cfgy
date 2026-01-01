@@ -1,14 +1,14 @@
 use anyhow::{Context, Result};
 use argon2::Argon2;
-use password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
-use uuid::Uuid;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{EncodingKey, Header, encode};
+use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use crate::ports::{UserRepository, AccessTokenRepository};
-use crate::ports::types::{User, AccessToken};
 use crate::config::Config;
+use crate::ports::entities::{AccessToken, User};
+use crate::ports::{AccessTokenRepository, UserRepository};
 
 /// JWT Claims для сессионного токена
 #[derive(Debug, Serialize, Deserialize)]
@@ -82,9 +82,14 @@ where
             .await?
             .ok_or_else(|| anyhow::anyhow!("Неверный email или пароль"))?;
 
+        // У SSO-only пользователей password_hash может отсутствовать
+        let password_hash = user
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Неверный email или пароль"))?;
+
         // Проверить пароль
-        Self::verify_password(password, &user.password_hash)
-            .context("Неверный email или пароль")?;
+        Self::verify_password(password, password_hash).context("Неверный email или пароль")?;
 
         Ok(user)
     }
@@ -113,8 +118,8 @@ where
 
     /// Проверить JWT сессионный токен
     pub fn verify_session_token(&self, token: &str) -> Result<SessionClaims> {
-        use jsonwebtoken::{decode, DecodingKey, Validation};
-        
+        use jsonwebtoken::{DecodingKey, Validation, decode};
+
         let validation = Validation::default();
         let token_data = decode::<SessionClaims>(
             token,
@@ -141,9 +146,8 @@ where
         let token_hash = Self::hash_token(&token)?;
 
         // Вычислить время истечения
-        let expires_at = expires_in_days.map(|days| {
-            chrono::Utc::now() + chrono::Duration::days(days as i64)
-        });
+        let expires_at =
+            expires_in_days.map(|days| chrono::Utc::now() + chrono::Duration::days(days as i64));
 
         // Сохранить токен в БД
         let access_token = self
@@ -230,7 +234,8 @@ where
         use ring::rand::{SecureRandom, SystemRandom};
         let rng = SystemRandom::new();
         let mut bytes = [0u8; 32];
-        rng.fill(&mut bytes).expect("Не удалось сгенерировать токен");
+        rng.fill(&mut bytes)
+            .expect("Не удалось сгенерировать токен");
         hex::encode(bytes)
     }
 
@@ -242,4 +247,3 @@ where
         Ok(hex::encode(context.finish().as_ref()))
     }
 }
-

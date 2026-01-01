@@ -1,171 +1,250 @@
 # CFGY
 
-Configuration & Secrets Management
+Configuration & Parameter Management с полноценным стеком: **CLI + Server API + Web Dashboard**.
 
-## Текущий статус проекта
+> Примечание по документации: всё описание проекта и инструкции по запуску держим в этом корневом `README.md`.
 
-**Этапы 0-3: ✅ Завершены**
-- Полнофункциональный CLI для локальной и серверной работы
-- REST API с аутентификацией и шифрованием
-- Интеграция CLI с сервером
-- Полнофункциональный веб-дашборд (React + TypeScript)
-  - Регистрация и аутентификация пользователей
-  - Управление проектами (CRUD)
-  - Управление окружениями
-  - Управление секретами (CRUD с шифрованием)
-  - Управление API токенами
+## Текущий статус
 
-**Этапы 4-6: ⏳ Планируются**
-- RBAC и команды (Этап 4)
-- Продвинутые функции (Этап 5)
-- Production-ready (Этап 6)
+**Этапы 0–3: ✅ завершены (MVP готов)**
+- **CLI**: работа в контексте проекта по `.cfgy.yaml` (project + текущая `configuration`) + работа с сервером
+- **Backend**: REST API (Axum) + PostgreSQL + миграции
+- **Шифрование параметров**: AES-GCM (на сервере используется master key)
+- **Web Dashboard** (React + TypeScript): регистрация/логин (JWT), проекты / configurations / параметры (CRUD), API токены
 
-Подробнее см. [plan.md](./plan.md).
+**Этапы 4–6: ⏳ в планах**
+- RBAC/команды/коллаборация, аудит
+- продвинутые функции (webhooks/интеграции/метрики)
+- production-ready (документация, тесты, мониторинг, бэкапы, healthchecks)
 
-## Недавние улучшения
+Подробнее: [plan.md](./plan.md).
 
-**Исправлено в текущей версии:**
-- ✅ Исправлена проблема с путем к `index.html` - сервер теперь правильно находит файлы веб-дашборда независимо от директории запуска
-- ✅ Улучшена обработка ошибок аутентификации - различаются ошибки JWT сессионных токенов и API токенов, автоматический logout при истекших токенах
-- ✅ Улучшена обработка ошибок расшифровки секретов - частичная расшифровка при ошибках отдельных секретов, детальное логирование для диагностики
-- ✅ Добавлена проверка формата JWT токенов перед проверкой
-- ✅ Добавлена диагностика ошибок шифрования с hex dump
+## Структура репозитория
 
-## Структура проекта
+Монорепозиторий (Cargo workspace):
 
-Проект организован как монорепозиторий с использованием Cargo workspaces:
-
-- `server/` - Backend сервер на Axum (Hexagonal Architecture)
-- `cli/` - CLI инструмент для управления конфигурацией
-- `shared/` - Общие типы и утилиты
-- `web/` - SPA фронтенд (React + TypeScript)
+- `server/` — backend сервер (Axum)
+- `cli/` — CLI клиент
+- `web/` — SPA фронтенд (React + TypeScript, Vite)
+- `tests/` — интеграционные smoke-тесты API
 
 ## Требования
 
-- Rust 1.70+
-- Docker и Docker Compose (для PostgreSQL)
-- Cargo
+### Для запуска через Docker (рекомендуется)
+- Docker + Docker Compose (v1 `docker-compose` или v2 `docker compose`)
+- Node.js + npm (нужно для сборки `web/`, сборка запускается из `Makefile`)
+- Rust toolchain (если собираешь/разрабатываешь Rust-компоненты локально)
 
-## Быстрый старт
+### Для локального запуска сервера без Docker
+- Rust toolchain (edition 2024)
+- PostgreSQL
+- `sqlx-cli` для миграций:
+  - `cargo install sqlx-cli --no-default-features --features postgres`
 
-### С помощью Makefile (рекомендуется)
+## Быстрый старт (рекомендуется: Docker Compose + Makefile)
 
 ```bash
-# Запустить весь проект (PostgreSQL + сервер + миграции)
+# посмотреть доступные команды
+make help
+
+# запустить PostgreSQL + применить миграции + собрать web + поднять server в Docker
 make run
 
-# Или полный цикл разработки
+# или "dev" сценарий (настройка БД + run)
 make dev
+
+# посмотреть статус контейнеров
+make ps
+
+# логи
+make logs-server
+make logs-postgres
+
+# остановить всё
+make down
 ```
 
-### Вручную
+После `make run`:
+- Server + Web: `http://localhost:8080`
+- PostgreSQL (наружу): `localhost:5433` (в контейнере: `5432`)
 
-#### 1. Запуск PostgreSQL
+### Ежедневный UX (CLI)
+CLI работает “в контексте проекта”, который хранится в `.cfgy.yaml` (project + текущая `configuration`).
+
+Минимальный набор команд, который обычно нужен:
+```bash
+# выбрать configuration по умолчанию для проекта (запишется в .cfgy.yaml)
+cfgy use dev
+
+# установить/прочитать параметр в текущей configuration
+cfgy set DATABASE_URL postgres://...
+cfgy get DATABASE_URL
+
+# список параметров текущей configuration
+cfgy list
+
+# запустить команду с параметрами текущей configuration, прокинутыми в env процесса
+cfgy run -- <command> [args...]
+```
+
+## Переменные окружения
+
+### Сервер (Docker Compose по умолчанию)
+В `docker-compose.yml` сервер использует:
+- `DATABASE__URL` — строка подключения к PostgreSQL (в Docker-сети)
+- `SERVER__HOST`, `SERVER__PORT`
+- `CFGY_MASTER_KEY` — master key для шифрования параметров (**в продакшене обязательно менять**)
+- `CFGY_JWT_SECRET` — секрет для JWT (**в продакшене обязательно менять**)
+- `RUST_LOG` — уровень логирования
+
+Можно переопределять через env при запуске compose, например:
+- `CFGY_MASTER_KEY=... CFGY_JWT_SECRET=... make run`
+
+### CLI (режим работы)
+Основной источник контекста для CLI — файл проекта `.cfgy.yaml` (project + текущая `configuration`).
+
+Переменные окружения отвечают за подключение к серверу:
+- `CFGY_SERVER_URL` — базовый URL сервера, обычно `http://localhost:8080`
+- `CFGY_API_TOKEN` — API токен (создаётся через веб-дашборд)
+
+Пример:
+```bash
+export CFGY_SERVER_URL=http://localhost:8080
+export CFGY_API_TOKEN="<token-from-dashboard>"
+```
+
+## Ручной запуск (без Makefile)
+
+### 1) Поднять PostgreSQL
+В Docker:
+```bash
+docker compose up -d postgres
+# или: docker-compose up -d postgres
+```
+
+Порт наружу: `5433`.
+
+### 2) Миграции
+Рекомендуемый путь — через `make migrate`, т.к. он использует те же настройки `DATABASE_URL`:
 
 ```bash
-docker-compose up -d
+make migrate
 ```
 
-Это запустит PostgreSQL на порту 5432.
+По умолчанию `Makefile` использует:
+- `DATABASE_URL=postgres://postgres:postgres@localhost:5433/cfgy`
 
-#### 2. Настройка переменных окружения
+Если у тебя другой URL — передай его:
+```bash
+DATABASE_URL="postgres://..." make migrate
+```
 
-Скопируйте `.env.example` (если есть) или используйте значения по умолчанию.
+### 3) Запуск сервера локально (без Docker)
+Убедись, что PostgreSQL уже запущен и миграции применены, затем:
+```bash
+make server
+```
 
-#### 3. Применение миграций
+(Эта команда прокидывает `DATABASE_URL` в `cargo run` для `server/`.)
 
-Миграции находятся в `server/migrations/`. Для их применения используйте `sqlx-cli`:
+### 4) Инициализация проекта и выбор configuration
+CLI ожидает файл `.cfgy.yaml` (создаётся в директории проекта):
 
 ```bash
-# Установка sqlx-cli (если не установлен)
-cargo install sqlx-cli --no-default-features --features postgres
+# в корне твоего проекта
+cfgy init
 
-# Применение миграций
-cd server
-sqlx migrate run
+# выбрать configuration по умолчанию (например dev/staging/prod)
+cfgy use dev
 ```
 
-#### 4. Запуск сервера
+Дальше `cfgy get/set/list/run` будут использовать выбранную `configuration` по умолчанию.
 
+### 5) Сборка фронтенда (если нужно)
+Сервер в `make run` сам делает `npm run build` в `web/`.
+Если ты запускаешь всё вручную:
 ```bash
-cd server
-cargo run
+cd web
+npm install
+npm run build
 ```
 
-Сервер запустится на `127.0.0.1:8080` и подключится к базе данных.
+## Команды Makefile (основные)
 
-## Команды Makefile
-
-Основные команды:
-
-- `make run` - Запустить весь проект (PostgreSQL + сервер)
-- `make dev` - Полный цикл разработки (настройка БД + запуск)
-- `make build` - Собрать все компоненты
-- `make check` - Проверить код
-- `make test` - Запустить тесты
-- `make up` - Запустить PostgreSQL
-- `make down` - Остановить PostgreSQL
-- `make migrate` - Применить миграции
-- `make help` - Показать все доступные команды
-
-## Разработка
-
-### Сборка всех компонентов
-
+Смотри полный список:
 ```bash
-cargo build
+make help
 ```
 
-### Проверка кода
+Ключевые:
+- `make run` — сборка `web` + запуск `postgres` + миграции + запуск `server` в Docker (background)
+- `make dev` — сценарий разработки (настройка БД + `run`)
+- `make up` / `make down` — поднять/остановить контейнеры
+- `make migrate` / `make migrate-check` — миграции
+- `make db-setup` / `make db-reset` — подготовка/пересоздание БД
+- `make logs`, `make logs-server`, `make logs-postgres`
+- `make build`, `make check`, `make test`, `make clippy`, `make fmt`
+- `make test-smoke` — smoke-тесты API
 
-```bash
-cargo check
-```
+## Web Dashboard
 
-### Тестирование
+Дашборд доступен на:
+- `http://localhost:8080`
 
-```bash
-cargo test
-```
+Функции:
+- регистрация/логин (JWT)
+- проекты: CRUD
+- configurations: CRUD
+- параметры: CRUD (часть параметров может быть чувствительной, хранение шифруется)
+- API токены: создание/просмотр/удаление
 
-## Архитектура сервера
+### Dev-режим web
+В репозитории есть `make dev-web`, который запускает web dev server и предполагает, что API уже запущен в Docker.
 
-Сервер использует Hexagonal Architecture (Ports & Adapters):
+Важно: эта команда не подходит для автозапуска в фоне (она интерактивная), поэтому используй её вручную, когда нужно.
 
-- `application/` - Бизнес-логика
-- `ports/` - Интерфейсы (трейты) и типы
-- `adapters/` - Реализации (HTTP, persistence, crypto)
+## Токены и аутентификация
 
-Подробнее см. `design.md`.
+Есть два типа токенов (концептуально):
+- **JWT (session token)** — для веб-сессии (логин в дашборде)
+- **API token** — для программного доступа (CLI/CI)
 
-## Веб-дашборд
+**Важно:** API токены **создаются только через веб-дашборд**.
 
-Веб-дашборд доступен по адресу `http://localhost:8080` после запуска сервера.
-
-**Возможности:**
-- ✅ Регистрация и вход пользователей (JWT аутентификация)
-- ✅ Управление проектами (создание, просмотр, редактирование, удаление)
-- ✅ Управление окружениями (создание, просмотр, удаление)
-- ✅ Управление секретами (CRUD операции с шифрованием AES-GCM)
-- ✅ Управление API токенами (создание, просмотр, удаление)
-- ✅ Автоматическая обработка ошибок аутентификации
-- ✅ Улучшенная обработка ошибок расшифровки секретов
-
-**Запуск веб-дашборда:**
-1. Соберите фронтенд: `cd web && npm install && npm run build`
-2. Запустите сервер: `make run` или `cd server && cargo run`
-3. Откройте в браузере: `http://localhost:8080`
-
-## Аутентификация и токены
-
-**Важно:** API токены создаются только через веб-дашборд.
-
-1. Войдите в веб-дашборд и создайте токен
-2. Установите токен в переменную окружения:
+Порядок:
+1. Запусти сервер (`make run`) и открой `http://localhost:8080`
+2. Зарегистрируйся/войдите
+3. Создай **API token**
+4. Экспортируй его для CLI:
    ```bash
-   export CFGY_API_TOKEN=<токен>
    export CFGY_SERVER_URL=http://localhost:8080
+   export CFGY_API_TOKEN="<token>"
    ```
-3. CLI автоматически использует токен для всех запросов
+5. Инициализируй проект и выбери configuration (один раз на проект/репозиторий):
+   ```bash
+   cfgy init
+   cfgy use dev
+   ```
+6. Используй короткие команды (`cfgy get/set/list/run`) — они будут применять текущую `configuration` из `.cfgy.yaml`.
 
-Подробнее о архитектурных решениях см. `ARCHITECTURE.md`.
+## Smoke-тесты API
+
+В `tests/` есть интеграционные smoke-тесты, которые проверяют основные сценарии API (регистрация/логин, проекты/configurations/параметры и т.д.).
+
+### Запуск
+
+1) Убедись, что сервер доступен на `http://localhost:8080` (например, `make run`).
+
+2) Запусти:
+```bash
+make test-smoke
+```
+
+При необходимости можно запускать напрямую:
+```bash
+cargo test --bin smoke_tests
+```
+
+## Архитектура и дизайн
+
+- `design.md` — заметки по архитектуре и устройству сервера

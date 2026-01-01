@@ -1,0 +1,215 @@
+/* ============================================
+   Color Utility Classes - ссылаются на CSS переменные
+   ============================================ */
+
+/* Basic Colors */
+.bg-basic-brand-color {
+  background-color: var(--color-basic-brand-color);
+}
+.bg-basic-accent {
+  background-color: var(--color-basic-accent);
+}
+.bg-basic-secondary {
+  background-color: var(--color-basic-secondary);
+}
+.bg-basic-gray {
+  background-color: var(--color-basic-gray);
+}
+
+.text-basic-accent {
+  color: var(--color-basic-accent);
+}
+.text-basic-secondary {
+  color: var(--color-basic-secondary);
+}
+.text-basic-gray {
+  color: var(--color-basic-gray);
+}
+.text-text-light {
+  color: var(--color-text-light);
+}
+.text-text-dark {
+  color: var(--color-text-dark);
+}
+
+.border-basic-accent {
+  border-color: var(--color-basic-accent);
+}
+.border-basic-gray {
+  border-color: var(--color-basic-gray);
+}
+.border-basic-secondary {
+  border-color: var(--color-basic-secondary);
+}
+.border-text-light {
+  border-color: var(--color-text-light);
+}
+.border-text-dark {
+  border-color: var(--color-text-dark);
+}
+
+/* States */
+.bg-states-error {
+  background-color: var(--color-states-error);
+}
+.bg-states-success {
+  background-color: var(--color-states-success);
+}
+.bg-states-disable {
+  background-color: var(--color-states-disable);
+}
+.text-states-error {
+  color: var(--color-states-error);
+}
+.text-states-success {
+  color: var(--color-states-success);
+}
+.border-states-error {
+  border-color: var(--color-states-error);
+}
+.border-states-success {
+  border-color: var(--color-states-success);
+}
+
+/* Lines */
+.bg-lines-gray {
+  background-color: var(--color-lines-gray);
+}
+.bg-lines-accent {
+  background-color: var(--color-lines-accent);
+}
+.border-lines-gray {
+  border-color: var(--color-lines-gray);
+}
+.border-lines-accent {
+  border-color: var(--color-lines-accent);
+}
+.text-lines-accent {
+  color: var(--color-lines-accent);
+}
+.text-lines-gray {
+  color: var(--color-lines-gray);
+}
+
+/* Background */
+.bg-background-light {
+  background-color: var(--color-background-light);
+}
+.bg-background-accent-light {
+  background-color: var(--color-background-accent-light);
+}
+.bg-background-default {
+  background-color: var(--color-background-default);
+}
+
+/* Interactive States - используются в компонентах */
+.bg-states-error-hover {
+  background-color: var(--color-states-error-hover);
+}
+.bg-states-error-active {
+  background-color: var(--color-states-error-active);
+}
+.bg-states-error-pressed {
+  background-color: var(--color-states-error-pressed);
+}
+.bg-basic-accent-hover {
+  background-color: var(--color-basic-accent-hover);
+}
+.bg-basic-accent-active {
+  background-color: var(--color-basic-accent-active);
+}
+.bg-basic-accent-pressed {
+  background-color: var(--color-basic-accent-pressed);
+}
+.bg-basic-accent-disabled {
+  background-color: var(--color-basic-accent-disabled);
+}
+.bg-basic-secondary-hover {
+  background-color: var(--color-basic-secondary-hover);
+}
+.bg-basic-secondary-active {
+  background-color: var(--color-basic-secondary-active);
+}
+.bg-basic-secondary-pressed {
+  background-color: var(--color-basic-secondary-pressed);
+}
+.bg-basic-gray-hover {
+  background-color: var(--color-basic-gray-hover);
+}
+.bg-basic-gray-active {
+  background-color: var(--color-basic-gray-active);
+}
+.bg-basic-gray-pressed {
+  background-color: var(--color-basic-gray-pressed);
+}
+
+/* Blue Colors из Figma */
+.bg-blue-dark {
+  background-color: var(--color-blue-dark);
+}
+.bg-blue-light {
+  background-color: var(--color-blue-light);
+}
+.text-blue-dark {
+  color: var(--color-blue-dark);
+}
+.text-blue-light {
+  color: var(--color-blue-light);
+}
+.border-blue-dark {
+  border-color: var(--color-blue-dark);
+}
+.border-blue-light {
+  border-color: var(--color-blue-light);
+}
+
+/* Basic Colors из Figma */
+.bg-basic-light {
+  background-color: var(--color-basic-light);
+}
+.bg-basic-dark {
+  background-color: var(--color-basic-dark);
+}
+.text-basic-light {
+  color: var(--color-basic-light);
+}
+.text-basic-dark {
+  color: var(--color-basic-dark);
+}
+.border-basic-light {
+  border-color: var(--color-basic-light);
+}
+.border-basic-dark {
+  border-color: var(--color-basic-dark);
+}
+
+/* Семантические токены из Figma */
+.bg-colors-surface {
+  background-color: var(--colors-surface);
+}
+.bg-colors-button-bg-primary {
+  background-color: var(--colors-button-bg-primary);
+}
+.bg-colors-button-bg-secondary {
+  background-color: var(--colors-button-bg-secondary);
+}
+.text-colors-button-label-primary {
+  color: var(--colors-button-label-primary);
+}
+.text-colors-button-label-secondary {
+  color: var(--colors-button-label-secondary);
+}
+.text-colors-text-primary {
+  color: var(--colors-text-primary);
+}
+.text-colors-text-secondary {
+  color: var(--colors-text-secondary);
+}
+.border-colors-stroke-secondary {
+  border-color: var(--colors-stroke-secondary);
+}
+
+/* Radius токены */
+.rounded-radius-4 {
+  border-radius: var(--radius-radius-4);
+}

@@ -1,0 +1,11 @@
+target/
+.git/
+.vscode/
+.cursor/
+node_modules/
+web/node_modules/
+*.md
+!README.md
+.env
+.env.local
+

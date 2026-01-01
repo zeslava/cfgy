@@ -1,2 +1,10 @@
+# CFGY project configuration
+#
+# This file lives in the repository root and defines the default context
+# for working with parameters in this project.
+#
+# NOTE: Older versions used `environment:`. The CLI keeps backward compatibility,
+# but the preferred key is `configuration:`.
+
 project: cfgy
-environment: dev
+configuration: dev

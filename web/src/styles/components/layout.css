@@ -1,0 +1,46 @@
+/* Layout Component Styles */
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.layout-main {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 120px;
+  padding-right: 120px;
+  padding-top: 92px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Адаптивные отступы для маленьких экранов */
+@media (max-width: 1440px) {
+  .layout-main {
+    padding-left: 60px;
+    padding-right: 60px;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout-main {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .layout-main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+

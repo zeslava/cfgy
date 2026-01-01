@@ -9,9 +9,17 @@ pub struct ProjectConfig {
     /// Имя проекта (уникально в рамках пользователя)
     #[serde(default = "default_project_name")]
     pub project: String,
-    /// Текущее окружение проекта
-    #[serde(default = "default_environment")]
-    pub environment: String,
+    /// Текущая configuration проекта (например: dev/staging/prod)
+    ///
+    /// В `.cfgy.yaml` это поле хранится как `configuration`.
+    #[serde(default = "default_configuration")]
+    pub configuration: String,
+
+    /// Backward-compat: старое имя поля в `.cfgy.yaml` (`environment`).
+    ///
+    /// Если в файле есть и `configuration`, и `environment`, приоритет — за `configuration`.
+    #[serde(default)]
+    pub environment: Option<String>,
 }
 
 fn default_project_name() -> String {
@@ -21,22 +29,30 @@ fn default_project_name() -> String {
         .unwrap_or_else(|| "test-project-name".to_string())
 }
 
-fn default_environment() -> String {
+fn default_configuration() -> String {
     "dev".to_string()
 }
 
 impl ProjectConfig {
     /// Найти путь к конфигурационному файлу
     pub fn find_config_path() -> Result<PathBuf> {
-        let current_dir =
+        let mut dir =
             std::env::current_dir().context("Не удалось определить текущую директорию")?;
 
-        let config_path = current_dir.join(".cfgy.yaml");
-        if config_path.exists() {
-            return Ok(config_path);
+        loop {
+            let candidate = dir.join(".cfgy.yaml");
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+
+            if !dir.pop() {
+                break;
+            }
         }
 
-        Err(anyhow::anyhow!("Конфигурационный файл не найден"))
+        Err(anyhow::anyhow!(
+            "Конфигурационный файл не найден (ожидался .cfgy.yaml в текущей директории или выше)"
+        ))
     }
 
     /// Путь к конфигурационному файлу в текущей директории
@@ -57,8 +73,18 @@ impl ProjectConfig {
         let content = fs::read_to_string(&path)
             .with_context(|| format!("Не удалось прочитать файл: {}", path.display()))?;
 
-        let config: Self = serde_yaml::from_str(&content)
+        let mut config: Self = serde_yaml::from_str(&content)
             .with_context(|| format!("Не удалось распарсить YAML: {}", path.display()))?;
+
+        // Backward-compat: если `configuration` отсутствует/пустая, но есть `environment`,
+        // подхватить её как configuration.
+        if config.configuration.trim().is_empty() {
+            if let Some(env) = config.environment.as_deref() {
+                if !env.trim().is_empty() {
+                    config.configuration = env.to_string();
+                }
+            }
+        }
 
         Ok(config)
     }
@@ -68,15 +94,26 @@ impl ProjectConfig {
         if !path.exists() {
             return Ok(Self {
                 project: default_project_name(),
-                environment: default_environment(),
+                configuration: default_configuration(),
+                environment: None,
             });
         }
 
         let content = fs::read_to_string(&path)
             .with_context(|| format!("Не удалось прочитать файл: {}", path.display()))?;
 
-        let config: Self = serde_yaml::from_str(&content)
+        let mut config: Self = serde_yaml::from_str(&content)
             .with_context(|| format!("Не удалось распарсить YAML: {}", path.display()))?;
+
+        // Backward-compat: если `configuration` отсутствует/пустая, но есть `environment`,
+        // подхватить её как configuration.
+        if config.configuration.trim().is_empty() {
+            if let Some(env) = config.environment.as_deref() {
+                if !env.trim().is_empty() {
+                    config.configuration = env.to_string();
+                }
+            }
+        }
 
         Ok(config)
     }
@@ -96,9 +133,9 @@ impl ProjectConfig {
     pub fn init(&mut self, project_name: String, path: &Path) -> Result<()> {
         self.project = project_name;
 
-        // Установить окружение по умолчанию, если оно пустое
-        if self.environment.is_empty() {
-            self.environment = "dev".to_string();
+        // Установить configuration по умолчанию, если она пустая
+        if self.configuration.is_empty() {
+            self.configuration = "dev".to_string();
         }
 
         self.save(path)

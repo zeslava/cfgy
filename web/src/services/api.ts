@@ -1,6 +1,6 @@
 // HTTP клиент для работы с CFGY API
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = "/api";
 
 export interface ApiError {
   error: string;
@@ -41,7 +41,7 @@ export interface UpdateProjectRequest {
   description?: string;
 }
 
-export interface Environment {
+export interface Configuration {
   id: string;
   project_id: string;
   name: string;
@@ -49,13 +49,16 @@ export interface Environment {
   updated_at: string;
 }
 
-export interface CreateEnvironmentRequest {
+export interface CreateConfigurationRequest {
   name: string;
 }
 
-export interface Secrets {
-  [key: string]: string;
+export interface Parameter {
+  key: string;
+  value: string;
 }
+
+export type Parameters = Parameter[];
 
 export interface Token {
   id: string;
@@ -82,37 +85,36 @@ export interface CreateTokenResponse {
 // Утилиты для работы с API
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
-  const token = localStorage.getItem('session_token');
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   };
 
   if (options.headers) {
     Object.assign(headers, options.headers);
   }
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
+  // Web auth через httpOnly cookies
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
+    credentials: "include",
     headers,
   });
 
   if (!response.ok) {
-    // Если получили 401 Unauthorized, токен недействителен - очищаем его
+    // Если получили 401 Unauthorized, сессия недействительна - очищаем локальные данные UI
     if (response.status === 401) {
-      localStorage.removeItem('session_token');
-      localStorage.removeItem('user');
+      localStorage.removeItem("user");
       // Перенаправляем на страницу входа, если не находимся на ней
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-        window.location.href = '/login';
+      if (
+        window.location.pathname !== "/login" &&
+        window.location.pathname !== "/register"
+      ) {
+        window.location.href = "/login";
       }
     }
-    
+
     const error: ApiError = await response.json().catch(() => ({
       error: `HTTP ${response.status}: ${response.statusText}`,
     }));
@@ -120,19 +122,22 @@ async function request<T>(
   }
 
   // Если ответ пустой (204 No Content или 200 с пустым телом)
-  if (response.status === 204 || response.headers.get('content-length') === '0') {
+  if (
+    response.status === 204 ||
+    response.headers.get("content-length") === "0"
+  ) {
     return undefined as T;
   }
 
   // Проверяем, есть ли контент перед парсингом
   const text = await response.text();
-  if (!text || text.trim() === '') {
+  if (!text || text.trim() === "") {
     return undefined as T;
   }
 
   try {
     return JSON.parse(text) as T;
-  } catch (e) {
+  } catch {
     // Если не удалось распарсить, возможно это пустой ответ
     return undefined as T;
   }
@@ -141,89 +146,139 @@ async function request<T>(
 // Аутентификация
 export const authApi = {
   register: (data: RegisterRequest): Promise<LoginResponse> =>
-    request('/auth/register', {
-      method: 'POST',
+    request("/auth/register", {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
   login: (data: LoginRequest): Promise<LoginResponse> =>
-    request('/auth/login', {
-      method: 'POST',
+    request("/auth/login", {
+      method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  me: (): Promise<LoginResponse & { username?: string | null }> =>
+    request("/auth/me"),
+
+  logout: (): Promise<void> =>
+    request("/auth/logout", {
+      method: "POST",
     }),
 };
 
 // Проекты
 export const projectsApi = {
-  list: (): Promise<Project[]> => request('/projects'),
+  list: (): Promise<Project[]> => request("/projects"),
 
   get: (id: string): Promise<Project> => request(`/projects/${id}`),
 
   create: (data: CreateProjectRequest): Promise<Project> =>
-    request('/projects', {
-      method: 'POST',
+    request("/projects", {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
   update: (id: string, data: UpdateProjectRequest): Promise<Project> =>
     request(`/projects/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(data),
     }),
 
   delete: (id: string): Promise<void> =>
     request(`/projects/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     }),
 };
 
-// Окружения
-export const environmentsApi = {
-  list: (projectId: string): Promise<Environment[]> =>
-    request(`/projects/${projectId}/environments`),
+// Конфигурации
+export const configurationsApi = {
+  list: (projectId: string): Promise<Configuration[]> =>
+    request(`/projects/${projectId}/configurations`),
 
-  create: (projectId: string, data: CreateEnvironmentRequest): Promise<Environment> =>
-    request(`/projects/${projectId}/environments`, {
-      method: 'POST',
+  create: (
+    projectId: string,
+    data: CreateConfigurationRequest,
+  ): Promise<Configuration> =>
+    request(`/projects/${projectId}/configurations`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
-  delete: (projectId: string, envId: string): Promise<void> =>
-    request(`/projects/${projectId}/environments/${envId}`, {
-      method: 'DELETE',
+  delete: (projectId: string, configId: string): Promise<void> =>
+    request(`/projects/${projectId}/configurations/${configId}`, {
+      method: "DELETE",
     }),
 };
 
-// Секреты
-export const secretsApi = {
-  get: (projectId: string, envName: string): Promise<Secrets> =>
-    request(`/projects/${projectId}/secrets/${envName}`),
+// Параметры
+export const parametersApi = {
+  // Получаем параметры и преобразуем объект в отсортированный массив
+  get: async (projectId: string, configName: string): Promise<Parameters> => {
+    const data = await request<Record<string, string> | Parameters>(
+      `/projects/${projectId}/configurations/${configName}/parameters`,
+    );
 
-  set: (projectId: string, envName: string, secrets: Secrets): Promise<void> =>
-    request(`/projects/${projectId}/secrets/${envName}`, {
-      method: 'PUT',
-      body: JSON.stringify(secrets),
-    }),
+    let result: Parameters = [];
 
-  delete: (projectId: string, envName: string, key: string): Promise<void> =>
-    request(`/projects/${projectId}/secrets/${envName}/${encodeURIComponent(key)}`, {
-      method: 'DELETE',
-    }),
+    // Если данные уже массив, используем его
+    if (Array.isArray(data)) {
+      result = data;
+    }
+    // Если данные объект, преобразуем в массив
+    else if (data && typeof data === "object" && !Array.isArray(data)) {
+      result = Object.entries(data).map(([key, value]) => ({ key, value }));
+    }
+
+    // Всегда сортируем результат по ключу
+    return result.sort((a, b) =>
+      a.key.localeCompare(b.key, "ru", { sensitivity: "base" }),
+    );
+  },
+
+  // Отправляем массив, преобразуя его в объект для сервера
+  set: async (
+    projectId: string,
+    configName: string,
+    parameters: Parameters,
+  ): Promise<void> => {
+    // Преобразуем массив в объект для отправки на сервер
+    const paramsObject = parameters.reduce(
+      (acc, param) => {
+        acc[param.key] = param.value;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+    return request(
+      `/projects/${projectId}/configurations/${configName}/parameters`,
+      {
+        method: "PUT",
+        body: JSON.stringify(paramsObject),
+      },
+    );
+  },
+
+  delete: (projectId: string, configName: string, key: string): Promise<void> =>
+    request(
+      `/projects/${projectId}/configurations/${configName}/parameters/${encodeURIComponent(key)}`,
+      {
+        method: "DELETE",
+      },
+    ),
 };
 
 // Токены
 export const tokensApi = {
-  list: (): Promise<Token[]> => request('/tokens'),
+  list: (): Promise<Token[]> => request("/tokens"),
 
   create: (data: CreateTokenRequest): Promise<CreateTokenResponse> =>
-    request('/tokens', {
-      method: 'POST',
+    request("/tokens", {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
   delete: (id: string): Promise<void> =>
     request(`/tokens/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     }),
 };
-

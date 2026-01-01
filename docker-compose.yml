@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cfgy
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
@@ -15,6 +15,39 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - cfgy-network
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: cfgy-server
+    environment:
+      DATABASE__URL: postgres://postgres:postgres@postgres:5432/cfgy
+      DATABASE__MAX_CONNECTIONS: 20
+      SERVER__HOST: 0.0.0.0
+      SERVER__PORT: 8080
+      CFGY_MASTER_KEY: ${CFGY_MASTER_KEY:-default-master-key-change-in-production}
+      CFGY_JWT_SECRET: ${CFGY_JWT_SECRET:-default-jwt-secret-change-in-production}
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cfgy-network
+
+networks:
+  cfgy-network:
+    driver: bridge
 
 volumes:
   postgres_data:

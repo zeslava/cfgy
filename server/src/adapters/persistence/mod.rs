@@ -1,4 +1,3 @@
 pub mod postgres;
 
-pub use postgres::PostgresRepositories;
-
+pub use postgres::PostgresUserRepository;

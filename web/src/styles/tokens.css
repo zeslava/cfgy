@@ -1,0 +1,120 @@
+/* ============================================
+   Design Tokens - Single Source of Truth
+   Все цвета определены здесь как CSS переменные
+   ============================================ */
+:root {
+  /* Text Colors */
+  --color-text-dark: #000033;
+  --color-text-light: #ffffff;
+  --color-text-default: #2d3748;
+
+  /* Basic Colors */
+  --color-basic-brand-color: #0f0f7b;
+  --color-basic-light: #ffffff; /* color-basic-basic-light из Figma */
+  --color-basic-dark: #000033; /* color-basic-basic-dark из Figma */
+  --color-basic-gray: #949494; /* color-basic-basic-gray-94 из Figma */
+  --color-basic-gray-hover: #7a7a7a;
+  --color-basic-gray-active: #5f5f5f;
+  --color-basic-gray-pressed: #454545;
+  --color-basic-secondary: #ebf1ff;
+  --color-basic-secondary-hover: #d0d9ff;
+  --color-basic-secondary-active: #b5c4ff;
+  --color-basic-secondary-pressed: #9aafff;
+  --color-basic-accent: #3333cc;
+  --color-basic-accent-hover: #4d4dff;
+  --color-basic-accent-active: #1a1a80;
+  --color-basic-accent-pressed: #000066;
+  --color-basic-accent-disabled: rgba(51, 51, 204, 0.5);
+
+  /* Blue Colors из Figma */
+  --color-blue-dark: #3333cc; /* color-blue-blue-dark из Figma */
+  --color-blue-light: #eff4ff; /* color-blue-blue-light из Figma */
+
+  /* Spacing Tokens из Figma */
+  --spacing-0: 0px;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-7: 32px;
+  --spacing-8: 36px;
+  --spacing-9: 40px;
+  --spacing-10: 44px;
+  --spacing-11: 48px;
+  --spacing-12: 52px;
+
+  /* States */
+  --color-states-error: #d70609;
+  --color-states-error-hover: #b00508;
+  --color-states-error-active: #8a0406;
+  --color-states-error-pressed: #6a0304;
+  --color-states-success: #12bf26;
+  --color-states-disable: #dfdfdf;
+
+  /* Lines */
+  --color-lines-gray: #dfdfdf;
+  --color-lines-accent: #b0c2ff;
+
+  /* Background */
+  --color-background-light: #ffffff;
+  --color-background-accent-light: #dce7ff;
+  --color-background-default: #f7fafc;
+  --color-avatar-background: #f8faff;
+
+  /* Legacy (для обратной совместимости) */
+  --color-primary: #3182ce;
+  --color-primary-hover: #2c5aa0;
+  --color-danger: #e53e3e;
+  --color-danger-hover: #c53030;
+  --color-secondary: #718096;
+  --color-secondary-hover: #4a5568;
+
+  /* Алиасы для базовых токенов (используются в семантических токенах Figma) */
+  --color-basic-basic-light: var(--color-basic-light);
+  --color-basic-basic-dark: var(--color-basic-dark);
+  --color-basic-basic-gray-94: var(--color-basic-gray);
+  --color-blue-blue-dark: var(--color-blue-dark);
+  --color-blue-blue-light: var(--color-blue-light);
+
+  /* Семантические токены из Figma */
+  --colors-surface: var(--color-basic-basic-light);
+  --colors-button-bg-primary: var(--color-blue-blue-dark);
+  --colors-button-bg-secondary: var(--color-blue-blue-light);
+  --colors-button-label-secondary: var(--color-basic-basic-dark);
+  --colors-text-primary: var(--color-basic-basic-dark);
+  --colors-text-secondary: var(--color-basic-basic-gray-94);
+  --colors-stroke-secondary: var(--color-basic-basic-gray-94);
+  --colors-button-label-primary: var(--color-basic-basic-light);
+
+  /* Radius токены из Figma */
+  --radius-radius-4: var(--spacing-1);
+
+  /* Spacing токены из Figma (семантические) */
+  --spacing-space-0: var(--spacing-0);
+  --spacing-space-4: var(--spacing-1);
+  --spacing-space-8: var(--spacing-2);
+  --spacing-space-12: var(--spacing-3);
+  --spacing-space-16: var(--spacing-4);
+  --spacing-space-24: var(--spacing-6);
+  --spacing-space-52: var(--spacing-12);
+
+  /* Typography токены из Figma (text-kegel) */
+  --text-kegel-16: var(--spacing-4);
+  --text-kegel-20: var(--spacing-5);
+  --text-kegel-24: var(--spacing-6);
+
+  /* Дополнительные размеры текста из дизайна */
+  --text-size-14: 14px;
+  --text-size-16: 16px;
+  --text-size-18: 18px;
+  --text-size-20: 20px;
+  --text-size-24: 24px;
+  --text-size-28: 28px;
+  --text-size-32: 32px;
+  --text-size-36: 36px;
+  --text-size-40: 40px;
+  --text-size-44: 44px;
+  --text-size-48: 48px;
+}

@@ -1,0 +1,57 @@
+# https://taskfile.dev
+version: "3"
+
+dotenv: [".env"]
+
+tasks:
+  default:
+    desc: Показать справку по командам
+    cmds:
+      - task --list
+
+  run:
+    desc: Локальная разработка (PostgreSQL в Docker + сервер локально)
+    cmds:
+      - echo "Запуск PostgreSQL в Docker..."
+      - docker compose up -d postgres
+      - task: wait-postgres
+      - task: migrate
+      - echo "Сервер будет доступен на http://localhost:8080"
+      - cargo run --bin cfgy-server
+
+  web:
+    desc: Запустить веб dev сервер
+    dir: web
+    cmds:
+      - echo "Веб на http://localhost:5173, API на http://localhost:8080"
+      - npm run dev
+
+  up:
+    desc: Запустить PostgreSQL в Docker
+    cmds:
+      - docker compose up -d postgres
+      - task: wait-postgres
+
+  down:
+    desc: Остановить контейнеры
+    cmds:
+      - docker compose down
+
+  migrate:
+    desc: Применить миграции
+    dir: server
+    cmds:
+      - sqlx migrate run --database-url "$DATABASE_URL"
+    ignore_error: true
+
+  wait-postgres:
+    internal: true
+    cmds:
+      - |
+        for i in $(seq 1 60); do
+          if docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1; then
+            echo "PostgreSQL готов!"
+            exit 0
+          fi
+          sleep 1
+        done
