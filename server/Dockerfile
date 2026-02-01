@@ -1,4 +1,12 @@
-# Стадия сборки
+# Стадия сборки фронта (один образ = API + статика из одного бинарника)
+FROM node:22-bookworm-slim AS web-builder
+WORKDIR /app/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+# Стадия сборки сервера
 # Используем latest версию Rust (1.85+ поддерживает edition 2024)
 FROM rust:latest as builder
 
@@ -54,8 +62,8 @@ COPY --from=builder /app/target/release/cfgy-server /app/cfgy-server
 # Копирование миграций
 COPY --from=builder /app/server/migrations ./migrations
 
-# Копирование собранного веб-приложения
-COPY web/dist ./web/dist
+# Копирование собранного веб-приложения (из стадии web-builder)
+COPY --from=web-builder /app/web/dist ./web/dist
 
 # Порт сервера
 EXPOSE 8080

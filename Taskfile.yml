@@ -9,12 +9,24 @@ tasks:
     cmds:
       - task --list
 
+  build:
+    desc: Собрать cfgy-server (release)
+    internal: true
+    cmds:
+      - cargo build --release --bin cfgy-server
+
   run:
     desc: Запустить сервер локально (БД отдельно: task up или свой инстанс)
-    deps: [migrate]
+    deps: [build, migrate]
     cmds:
       - echo "Сервер на http://localhost:8080"
-      - cargo run --bin cfgy-server
+      - ./target/release/cfgy-server
+
+  build_web:
+    desc: Собрать веб в релиз (web/dist)
+    dir: web
+    cmds:
+      - npm run build
 
   web:
     desc: Запустить веб dev сервер
@@ -52,3 +64,10 @@ tasks:
           fi
           sleep 1
         done
+
+  install-freebsd:
+    desc: Установить cfgy-server как системный сервис на FreeBSD (запускать от root на целевом хосте)
+    deps: [build-freebsd-binary]
+    cmds:
+      - ./freebsd/install.sh target/release/cfgy-server
+

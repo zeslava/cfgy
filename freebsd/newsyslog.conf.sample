@@ -1,0 +1,5 @@
+# Ротация логов cfgy_server
+# Добавьте эту строку в /etc/newsyslog.conf (или создайте файл в /etc/newsyslog.d/)
+# Формат: logfile [owner:group] mode count size when flags [pid_file] [sig_num]
+
+/var/log/cfgy_server/cfgy_server.log   cfgy:cfgy   644  7  *  @daily  Z

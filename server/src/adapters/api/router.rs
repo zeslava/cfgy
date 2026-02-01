@@ -14,8 +14,17 @@ use tower_http::{
 use crate::adapters::api::handlers::AppState;
 
 /// Получить путь к index.html, проверяя несколько возможных расположений
-/// Все проверки выполняются во время выполнения, чтобы работать независимо от места запуска
+/// Все проверки выполняются во время выполнения, чтобы работать независимо от места запуска.
+/// Для FreeBSD/системного сервиса задайте CFGY_WEB_ROOT (каталог с index.html, например /var/lib/cfgy_server/web/dist).
 fn get_index_path() -> std::path::PathBuf {
+    // 0. Явный путь из переменной окружения (для системного сервиса, например FreeBSD)
+    if let Ok(root) = std::env::var("CFGY_WEB_ROOT") {
+        let path = std::path::Path::new(&root).join("index.html");
+        if path.exists() {
+            return path;
+        }
+    }
+
     // 1. В Docker контейнере файлы всегда в /app/web/dist
     let docker_path = std::path::Path::new("/app/web/dist/index.html");
     if docker_path.exists() {
