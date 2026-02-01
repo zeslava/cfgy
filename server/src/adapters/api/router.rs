@@ -245,8 +245,8 @@ pub fn create_router(state: AppState) -> Router {
         // SvelteKit: JS/CSS в _app/
         .nest_service("/_app", ServeDir::new(static_dir.join("_app")))
         .route("/favicon.svg", get(handlers::serve_favicon))
-        // Раздача других статических файлов (logo и т.д.)
-        .nest_service("/logo.svg", ServeDir::new(static_dir.clone()))
+        .route("/logo.svg", get(handlers::serve_logo))
+        .route("/robots.txt", get(handlers::serve_robots_txt))
         // SPA fallback: все остальные запросы возвращают index.html
         .fallback(serve_index)
         .layer(cors)
