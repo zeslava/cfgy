@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/useAuth";
 import { Avatar } from "./ui/Avatar";
 import { Button } from "./ui/Button";
 import { ExitIcon } from "./ui/Icons";
-import { getInitialsFromEmail } from "@/utils/avatar";
+import { getInitialsFromEmail, getDisplayName } from "@/utils/avatar";
 import logoImage from "@/assets/logo.svg";
 import "@/styles/components/header.css";
 
@@ -27,11 +27,11 @@ export const Header: React.FC = () => {
           <Link to="/profile" className="header-user-link">
             <Avatar
               size="small"
-              initials={getInitialsFromEmail(user?.username || "U")}
+              initials={getInitialsFromEmail(user?.email || getDisplayName(user) || "U")}
               className="bg-white text-text-dark"
             />
             <span className="header-user-email">
-              {user?.username || "Пользователь"}
+              {getDisplayName(user)}
             </span>
           </Link>
           <Button

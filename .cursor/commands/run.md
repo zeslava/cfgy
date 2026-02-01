@@ -1,1 +1,1 @@
-make run
+task run

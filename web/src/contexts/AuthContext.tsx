@@ -1,10 +1,10 @@
-// Контекст для управления аутентификацией (cookie-based сессия)
+// Контекст для управления аутентификацией (token-based: session_token в localStorage, Authorization: Bearer)
 //
 // Важно для React Fast Refresh:
 // файл должен экспортировать только компоненты, поэтому контекст вынесен в отдельный модуль.
 import React, { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { authApi } from "../services/api";
+import { authApi, getSessionToken, setSessionToken, clearSessionToken } from "../services/api";
 import type { LoginResponse } from "../services/api";
 import { AuthContext } from "./AuthContextValue";
 import type { AuthContextType } from "./AuthContextValue";
@@ -17,8 +17,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<
     (LoginResponse & { username?: string | null }) | null
   >(null);
-  // Для cookie-based сессии мы не можем синхронно "прочитать" токен из хранилища.
-  // Поэтому при старте (и после SSO-redirect) подтягиваем пользователя через /api/auth/me.
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -27,12 +25,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const bootstrap = async () => {
       setIsLoading(true);
       try {
-        const me = await authApi.me();
-        if (!cancelled) {
-          setUser(me);
+        // После OAuth redirect сервер редиректит на /projects#session_token=<jwt> — читаем и сохраняем
+        const hash = window.location.hash.slice(1);
+        const params = new URLSearchParams(hash);
+        const tokenFromHash = params.get("session_token");
+        if (tokenFromHash) {
+          setSessionToken(decodeURIComponent(tokenFromHash));
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+        // Если токена нет в hash — пробуем обмен cookie на токен (GET /api/auth/session)
+        if (!getSessionToken()) {
+          const session = await authApi.session();
+          if (!cancelled && session?.session_token) {
+            setSessionToken(session.session_token);
+          }
+        }
+        const token = getSessionToken();
+        if (!token) {
+          if (!cancelled) setUser(null);
+        } else {
+          const me = await authApi.me();
+          if (!cancelled) setUser(me);
         }
       } catch {
-        // Нет сессии / cookie невалидна — просто считаем пользователя неаутентифицированным
         if (!cancelled) {
           setUser(null);
         }
@@ -51,22 +66,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Сервер устанавливает httpOnly cookie сессии; session_token в UI не храним
     const response = await authApi.login({ email, password });
+    if (response.session_token) {
+      setSessionToken(response.session_token);
+    }
     setUser(response);
   };
 
   const register = async (email: string, password: string) => {
-    // Сервер устанавливает httpOnly cookie сессии; session_token в UI не храним
     const response = await authApi.register({ email, password });
+    if (response.session_token) {
+      setSessionToken(response.session_token);
+    }
     setUser(response);
   };
 
   const logout = async () => {
-    // Очищаем сессию на сервере (httpOnly cookie) + локальное состояние UI
     try {
       await authApi.logout();
     } finally {
+      clearSessionToken();
       setUser(null);
     }
   };
@@ -77,7 +96,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
-    // Для cookie-based схемы считаем аутентификацию подтверждённой после /api/auth/me
     isAuthenticated: !!user,
   };
 

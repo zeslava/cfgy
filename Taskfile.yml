@@ -10,13 +10,10 @@ tasks:
       - task --list
 
   run:
-    desc: Локальная разработка (PostgreSQL в Docker + сервер локально)
+    desc: Запустить сервер локально (БД отдельно: task up или свой инстанс)
+    deps: [migrate]
     cmds:
-      - echo "Запуск PostgreSQL в Docker..."
-      - docker compose up -d postgres
-      - task: wait-postgres
-      - task: migrate
-      - echo "Сервер будет доступен на http://localhost:8080"
+      - echo "Сервер на http://localhost:8080"
       - cargo run --bin cfgy-server
 
   web:

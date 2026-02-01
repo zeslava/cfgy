@@ -82,4 +82,3 @@ CREATE TRIGGER update_environments_updated_at BEFORE UPDATE ON environments
 
 CREATE TRIGGER update_config_keys_updated_at BEFORE UPDATE ON config_keys
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-

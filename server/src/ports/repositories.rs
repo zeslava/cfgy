@@ -30,6 +30,9 @@ pub trait UserRepository: Send + Sync {
 
     /// Найти пользователя по ID
     async fn find_by_id(&self, id: Uuid) -> Result<Option<User>>;
+
+    /// Обновить email и username пользователя (например, после входа через ZID).
+    async fn update_profile(&self, id: Uuid, email: &str, username: &str) -> Result<User>;
 }
 
 /// Репозиторий для работы с проектами

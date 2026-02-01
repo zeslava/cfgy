@@ -160,7 +160,7 @@ dev-local: ## Локальная разработка: PostgreSQL в Docker + с
 	@echo "$(GREEN)Сервер будет доступен на http://localhost:8080$(RESET)"
 	@echo "$(YELLOW)Нажмите Ctrl+C для остановки$(RESET)"
 	@CFGY_MASTER_KEY=dev-master-key CFGY_JWT_SECRET=dev-jwt-secret \
-		DATABASE__URL="$(DATABASE_URL)" cargo run --bin cfgy-server
+		DATABASE_URL="$(DATABASE_URL)" cargo run --bin cfgy-server
 
 dev-web: ## Запустить веб dev сервер (запустите dev-local в другом терминале)
 	@echo "$(CYAN)Запуск веб dev сервера...$(RESET)"
@@ -172,7 +172,7 @@ dev-web: ## Запустить веб dev сервер (запустите dev-l
 server: ## Запустить только сервер локально (без Docker, требует запущенный PostgreSQL)
 	@echo "$(YELLOW)ВНИМАНИЕ: Запуск сервера локально. Убедитесь, что PostgreSQL запущен.$(RESET)"
 	@CFGY_MASTER_KEY=dev-master-key CFGY_JWT_SECRET=dev-jwt-secret \
-		DATABASE__URL="$(DATABASE_URL)" cargo run --bin cfgy-server
+		DATABASE_URL="$(DATABASE_URL)" cargo run --bin cfgy-server
 
 server-docker: up ## Запустить только сервер в Docker (PostgreSQL должен быть запущен)
 	@echo "$(CYAN)Запуск только сервера в Docker...$(RESET)"

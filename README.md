@@ -32,8 +32,9 @@ Configuration & Parameter Management с полноценным стеком: **C
 
 ### Для запуска через Docker (рекомендуется)
 - Docker + Docker Compose (v1 `docker-compose` или v2 `docker compose`)
-- Node.js + npm (нужно для сборки `web/`, сборка запускается из `Makefile`)
+- Node.js + npm (нужно для сборки `web/`)
 - Rust toolchain (если собираешь/разрабатываешь Rust-компоненты локально)
+- Task (Taskfile runner): `go install github.com/go-task/task/v3/cmd/task@latest` или через пакетный менеджер
 
 ### Для локального запуска сервера без Docker
 - Rust toolchain (edition 2024)
@@ -41,32 +42,43 @@ Configuration & Parameter Management с полноценным стеком: **C
 - `sqlx-cli` для миграций:
   - `cargo install sqlx-cli --no-default-features --features postgres`
 
-## Быстрый старт (рекомендуется: Docker Compose + Makefile)
+## Быстрый старт (рекомендуется: Docker Compose + Taskfile)
 
 ```bash
 # посмотреть доступные команды
-make help
+task
 
-# запустить PostgreSQL + применить миграции + собрать web + поднять server в Docker
-make run
+# локальная разработка (PostgreSQL в Docker + сервер локально)
+task run
 
-# или "dev" сценарий (настройка БД + run)
-make dev
+# запустить веб dev сервер (в отдельном терминале)
+task web
 
-# посмотреть статус контейнеров
-make ps
+# запустить PostgreSQL в Docker
+task up
 
-# логи
-make logs-server
-make logs-postgres
+# остановить контейнеры
+task down
 
-# остановить всё
-make down
+# применить миграции
+task migrate
 ```
 
-После `make run`:
-- Server + Web: `http://localhost:8080`
+После `task run`:
+- Server: `http://localhost:8080`
 - PostgreSQL (наружу): `localhost:5433` (в контейнере: `5432`)
+
+Для просмотра статуса контейнеров и логов используйте `docker compose` напрямую:
+```bash
+# статус контейнеров
+docker compose ps
+
+# логи сервера
+docker compose logs -f server
+
+# логи PostgreSQL
+docker compose logs -f postgres
+```
 
 ### Ежедневный UX (CLI)
 CLI работает “в контексте проекта”, который хранится в `.cfgy.yaml` (project + текущая `configuration`).
@@ -85,20 +97,38 @@ cfgy list
 
 # запустить команду с параметрами текущей configuration, прокинутыми в env процесса
 cfgy run -- <command> [args...]
+
+# сгенерировать секретные ключи для сервера (CFGY_MASTER_KEY, CFGY_JWT_SECRET)
+cfgy generate-secrets
+# или в формате для shell:
+cfgy generate-secrets --format shell
 ```
 
 ## Переменные окружения
 
+### Настройка переменных окружения
+
+Скопируйте `.env.example` в `.env` и настройте под свои нужды:
+```bash
+cp .env.example .env
+```
+
+Файл `.env` уже добавлен в `.gitignore` и не будет закоммичен в репозиторий.
+
 ### Сервер (Docker Compose по умолчанию)
 В `docker-compose.yml` сервер использует:
-- `DATABASE__URL` — строка подключения к PostgreSQL (в Docker-сети)
-- `SERVER__HOST`, `SERVER__PORT`
-- `CFGY_MASTER_KEY` — master key для шифрования параметров (**в продакшене обязательно менять**)
-- `CFGY_JWT_SECRET` — секрет для JWT (**в продакшене обязательно менять**)
+- `DATABASE_URL` — строка подключения к PostgreSQL (используется и для миграций, и для сервера)
+- `DATABASE_MAX_CONNECTIONS` — максимальное количество подключений к БД (опционально, по умолчанию: 20)
+- `SERVER_HOST`, `SERVER_PORT` — хост и порт сервера (опционально)
+- `CFGY_MASTER_KEY` — master key для шифрования параметров (рекомендуется установить свой)
+- `CFGY_JWT_SECRET` — секрет для JWT (рекомендуется установить свой)
+- ZID OAuth 2.0 (вход через ZID): `ZID_ISSUER`, `ZID_CLIENT_ID`, `ZID_CLIENT_SECRET`, `ZID_REDIRECT_URI` — см. `.env.example`
 - `RUST_LOG` — уровень логирования
 
-Можно переопределять через env при запуске compose, например:
-- `CFGY_MASTER_KEY=... CFGY_JWT_SECRET=... make run`
+Можно переопределять через env при запуске, например:
+- `CFGY_MASTER_KEY=... CFGY_JWT_SECRET=... task run`
+
+**Для домашнего использования:** можно оставить дефолтные значения - система будет работать с предупреждениями.
 
 ### CLI (режим работы)
 Основной источник контекста для CLI — файл проекта `.cfgy.yaml` (project + текущая `configuration`).
@@ -113,39 +143,39 @@ export CFGY_SERVER_URL=http://localhost:8080
 export CFGY_API_TOKEN="<token-from-dashboard>"
 ```
 
-## Ручной запуск (без Makefile)
+## Ручной запуск
 
 ### 1) Поднять PostgreSQL
 В Docker:
 ```bash
-docker compose up -d postgres
-# или: docker-compose up -d postgres
+task up
+# или напрямую: docker compose up -d postgres
 ```
 
 Порт наружу: `5433`.
 
 ### 2) Миграции
-Рекомендуемый путь — через `make migrate`, т.к. он использует те же настройки `DATABASE_URL`:
+Рекомендуемый путь — через `task migrate`:
 
 ```bash
-make migrate
+task migrate
 ```
 
-По умолчанию `Makefile` использует:
+По умолчанию используется переменная окружения `DATABASE_URL`:
 - `DATABASE_URL=postgres://postgres:postgres@localhost:5433/cfgy`
 
 Если у тебя другой URL — передай его:
 ```bash
-DATABASE_URL="postgres://..." make migrate
+DATABASE_URL="postgres://..." task migrate
 ```
 
-### 3) Запуск сервера локально (без Docker)
+### 3) Запуск сервера локально
 Убедись, что PostgreSQL уже запущен и миграции применены, затем:
 ```bash
-make server
+task run
 ```
 
-(Эта команда прокидывает `DATABASE_URL` в `cargo run` для `server/`.)
+Эта команда запускает сервер локально через `cargo run --bin cfgy-server`.
 
 ### 4) Инициализация проекта и выбор configuration
 CLI ожидает файл `.cfgy.yaml` (создаётся в директории проекта):
@@ -161,30 +191,32 @@ cfgy use dev
 Дальше `cfgy get/set/list/run` будут использовать выбранную `configuration` по умолчанию.
 
 ### 5) Сборка фронтенда (если нужно)
-Сервер в `make run` сам делает `npm run build` в `web/`.
-Если ты запускаешь всё вручную:
+Для production сборки:
 ```bash
 cd web
 npm install
 npm run build
 ```
 
-## Команды Makefile (основные)
+## Команды Taskfile
 
 Смотри полный список:
 ```bash
-make help
+task
 ```
 
-Ключевые:
-- `make run` — сборка `web` + запуск `postgres` + миграции + запуск `server` в Docker (background)
-- `make dev` — сценарий разработки (настройка БД + `run`)
-- `make up` / `make down` — поднять/остановить контейнеры
-- `make migrate` / `make migrate-check` — миграции
-- `make db-setup` / `make db-reset` — подготовка/пересоздание БД
-- `make logs`, `make logs-server`, `make logs-postgres`
-- `make build`, `make check`, `make test`, `make clippy`, `make fmt`
-- `make test-smoke` — smoke-тесты API
+Основные команды:
+- `task run` — локальная разработка (PostgreSQL в Docker + сервер локально)
+- `task web` — запустить веб dev сервер (Vite)
+- `task up` — запустить PostgreSQL в Docker
+- `task down` — остановить контейнеры
+- `task migrate` — применить миграции
+
+Для других операций используйте стандартные инструменты:
+- `cargo build`, `cargo check`, `cargo test`, `cargo clippy`, `cargo fmt` — стандартные команды Cargo
+- `docker compose ps` — статус контейнеров
+- `docker compose logs -f [service]` — логи сервисов
+- `cargo test --bin smoke_tests` — smoke-тесты API
 
 ## Web Dashboard
 
@@ -192,16 +224,16 @@ make help
 - `http://localhost:8080`
 
 Функции:
-- регистрация/логин (JWT)
+- регистрация/логин (JWT), вход через ZID (OAuth 2.0 Authorization Code)
 - проекты: CRUD
 - configurations: CRUD
 - параметры: CRUD (часть параметров может быть чувствительной, хранение шифруется)
 - API токены: создание/просмотр/удаление
 
 ### Dev-режим web
-В репозитории есть `make dev-web`, который запускает web dev server и предполагает, что API уже запущен в Docker.
+В репозитории есть `task web`, который запускает web dev server (Vite) и предполагает, что API уже запущен (через `task run` в другом терминале).
 
-Важно: эта команда не подходит для автозапуска в фоне (она интерактивная), поэтому используй её вручную, когда нужно.
+Важно: эта команда интерактивная, поэтому используй её вручную, когда нужно.
 
 ## Токены и аутентификация
 
@@ -212,7 +244,7 @@ make help
 **Важно:** API токены **создаются только через веб-дашборд**.
 
 Порядок:
-1. Запусти сервер (`make run`) и открой `http://localhost:8080`
+1. Запусти сервер (`task run`) и открой `http://localhost:8080`
 2. Зарегистрируйся/войдите
 3. Создай **API token**
 4. Экспортируй его для CLI:
@@ -233,14 +265,9 @@ make help
 
 ### Запуск
 
-1) Убедись, что сервер доступен на `http://localhost:8080` (например, `make run`).
+1) Убедись, что сервер доступен на `http://localhost:8080` (например, `task run`).
 
 2) Запусти:
-```bash
-make test-smoke
-```
-
-При необходимости можно запускать напрямую:
 ```bash
 cargo test --bin smoke_tests
 ```

@@ -1,13 +1,14 @@
 use axum::{
     Router,
     body::Body,
-    http::{Method, StatusCode, header},
+    http::{Method, StatusCode, header, HeaderValue},
     response::Response,
     routing::{delete, get, patch, post, put},
 };
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::{Any, CorsLayer, AllowOrigin},
     services::ServeDir,
+    set_header::SetResponseHeaderLayer,
 };
 
 use crate::adapters::api::handlers::AppState;
@@ -127,29 +128,74 @@ pub fn create_router(state: AppState) -> Router {
     // Используем ту же логику поиска, что и для index.html
     let static_dir = get_index_path().parent().unwrap().to_path_buf();
 
-    // CORS для разработки - разрешаем запросы с localhost:5173 (Vite dev server)
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::PATCH,
-            Method::DELETE,
-        ])
-        .allow_headers(Any);
+    // Настройка CORS
+    // Если установлен ALLOWED_ORIGINS - используем его, иначе разрешаем все (для домашнего использования)
+    let cors = if let Ok(allowed_origins) = std::env::var("ALLOWED_ORIGINS") {
+        // Если установлен ALLOWED_ORIGINS - ограничиваем CORS указанными источниками
+        let origins: Vec<HeaderValue> = allowed_origins
+            .split(',')
+            .map(|s| s.trim())
+            .filter_map(|s| {
+                if s.is_empty() {
+                    None
+                } else {
+                    HeaderValue::from_str(s).ok()
+                }
+            })
+            .collect();
 
-    Router::new()
-        // Health check endpoint
-        .route("/health", get(|| async { "OK" }))
+        if origins.is_empty() {
+            eprintln!("⚠️  ВНИМАНИЕ: ALLOWED_ORIGINS пуст, разрешаются все источники");
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::PATCH,
+                    Method::DELETE,
+                ])
+                .allow_headers(Any)
+        } else {
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(origins))
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::PATCH,
+                    Method::DELETE,
+                ])
+                .allow_headers(Any)
+        }
+    } else {
+        // Если ALLOWED_ORIGINS не установлен - разрешаем все (удобно для домашнего использования)
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+            ])
+            .allow_headers(Any)
+    };
+
+    let mut router = Router::new()
+        // Health check endpoint с проверкой БД
+        .route("/health", get(handlers::health_check))
         // API маршруты (должны быть перед статикой)
         .route("/api/auth/register", post(handlers::register))
         .route("/api/auth/login", post(handlers::login))
+        .route("/api/auth/session", get(handlers::session))
         .route("/api/auth/me", get(handlers::me))
         .route("/api/auth/logout", post(handlers::logout))
-        // ZID SSO (Web login)
+        // ZID OAuth (Web login). Поддержка и /auth/zid и /oauth/zid (ZID может быть настроен на любой)
         .route("/auth/zid/login", get(handlers::zid_login))
         .route("/auth/zid/callback", get(handlers::zid_callback))
+        .route("/oauth/zid/login", get(handlers::zid_login))
+        .route("/oauth/zid/callback", get(handlers::zid_callback))
         // Проекты (требуют аутентификации)
         .route("/api/projects", post(handlers::create_project))
         .route("/api/projects", get(handlers::list_projects))
@@ -194,5 +240,32 @@ pub fn create_router(state: AppState) -> Router {
         // SPA fallback: все остальные запросы возвращают index.html
         .fallback(serve_index)
         .layer(cors)
-        .with_state(state)
+        // Security Headers
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("x-xss-protection"),
+            HeaderValue::from_static("1; mode=block"),
+        ))
+        .with_state(state);
+
+    // HSTS только если используется HTTPS
+    let enable_https = std::env::var("ENABLE_HTTPS")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    if enable_https {
+        router = router.layer(SetResponseHeaderLayer::overriding(
+            header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ));
+    }
+
+    router
 }

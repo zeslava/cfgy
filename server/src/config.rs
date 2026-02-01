@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+// Убрали зависимость от библиотеки config - читаем переменные окружения напрямую
+// Это проще и понятнее, без необходимости в двойных подчеркиваниях
+
 /// Конфигурация сервера
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -23,15 +26,21 @@ pub struct ServerConfig {
     pub port: u16,
 }
 
-/// Конфигурация интеграции с ZID (SSO для Web UI)
+/// Конфигурация интеграции с ZID (OAuth 2.0 / OIDC для Web UI)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZidConfig {
-    /// Base URL сервиса ZID, например: http://localhost:5555
-    pub base_url: String,
+    /// Базовый URL ZID (issuer), например: https://zid.example.com или http://localhost:5555
+    pub issuer: String,
 
-    /// Полный callback URL, который ZID будет дергать после логина (service/return_to).
-    /// Для dev через web: http://localhost:5173/auth/zid/callback
-    pub callback_url: String,
+    /// client_id, выданный для этого приложения в ZID (oidc_clients и т.п.)
+    pub client_id: String,
+
+    /// client_secret для confidential client
+    pub client_secret: String,
+
+    /// Полный callback URL (redirect_uri). Должен побайтово совпадать с redirect_uris в ZID.
+    /// Например: https://our-app.com/auth/zid/callback или http://localhost:5173/auth/zid/callback
+    pub redirect_uri: String,
 }
 
 /// Конфигурация криптографии
@@ -42,19 +51,88 @@ pub struct CryptoConfig {
 }
 
 impl Config {
-    /// Загрузить конфигурацию из переменных окружения и файла
-    pub fn load() -> Result<Self, config::ConfigError> {
-        let mut builder =
-            config::Config::builder().add_source(config::Environment::default().separator("__"));
+    /// Загрузить конфигурацию из переменных окружения
+    pub fn load() -> Result<Self, String> {
+        let config = Config {
+            database: DatabaseConfig {
+                url: std::env::var("DATABASE_URL")
+                    .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/cfgy".to_string()),
+                max_connections: std::env::var("DATABASE_MAX_CONNECTIONS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(20),
+            },
+            server: ServerConfig {
+                host: std::env::var("SERVER_HOST")
+                    .unwrap_or_else(|_| "127.0.0.1".to_string()),
+                port: std::env::var("SERVER_PORT")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(8080),
+            },
+            crypto: CryptoConfig {
+                master_key: std::env::var("CFGY_MASTER_KEY")
+                    .unwrap_or_else(|_| "default-master-key-change-in-production".to_string()),
+                jwt_secret: std::env::var("CFGY_JWT_SECRET")
+                    .unwrap_or_else(|_| "default-jwt-secret-change-in-production".to_string()),
+            },
+            zid: ZidConfig {
+                issuer: std::env::var("ZID_ISSUER")
+                    .or_else(|_| std::env::var("ZID_BASE_URL"))
+                    .unwrap_or_else(|_| "http://localhost:5555".to_string()),
+                client_id: std::env::var("ZID_CLIENT_ID").unwrap_or_default(),
+                client_secret: std::env::var("ZID_CLIENT_SECRET").unwrap_or_default(),
+                redirect_uri: std::env::var("ZID_REDIRECT_URI")
+                    .or_else(|_| std::env::var("ZID_CALLBACK_URL"))
+                    .unwrap_or_else(|_| "http://localhost:5173/auth/zid/callback".to_string()),
+            },
+        };
+        
+        // Валидация конфигурации
+        config.validate().map_err(|e| e.to_string())?;
+        
+        Ok(config)
+    }
 
-        // Добавляем значения по умолчанию для crypto, если они не заданы
-        let default = Config::default();
-        builder = builder
-            .set_default("crypto.master_key", default.crypto.master_key.clone())?
-            .set_default("crypto.jwt_secret", default.crypto.jwt_secret.clone())?;
+    /// Валидация конфигурации
+    /// 
+    /// Проверяет секреты и выдает предупреждения, но не блокирует запуск.
+    /// Для домашнего использования дефолтные значения допустимы.
+    pub fn validate(&self) -> Result<(), String> {
+        const DEFAULT_MASTER_KEY: &str = "default-master-key-change-in-production";
+        const DEFAULT_JWT_SECRET: &str = "default-jwt-secret-change-in-production";
+        const MIN_MASTER_KEY_LEN: usize = 32;
+        const MIN_JWT_SECRET_LEN: usize = 16;
 
-        let config = builder.build()?;
-        config.try_deserialize()
+        // Проверка master_key
+        if self.crypto.master_key == DEFAULT_MASTER_KEY {
+            eprintln!(
+                "⚠️  ВНИМАНИЕ: Используется дефолтный CFGY_MASTER_KEY. \
+                Рекомендуется установить переменную окружения CFGY_MASTER_KEY для безопасности"
+            );
+        } else if self.crypto.master_key.len() < MIN_MASTER_KEY_LEN {
+            eprintln!(
+                "⚠️  ВНИМАНИЕ: CFGY_MASTER_KEY слишком короткий ({} символов, рекомендуется минимум {})",
+                self.crypto.master_key.len(),
+                MIN_MASTER_KEY_LEN
+            );
+        }
+
+        // Проверка jwt_secret
+        if self.crypto.jwt_secret == DEFAULT_JWT_SECRET {
+            eprintln!(
+                "⚠️  ВНИМАНИЕ: Используется дефолтный CFGY_JWT_SECRET. \
+                Рекомендуется установить переменную окружения CFGY_JWT_SECRET для безопасности"
+            );
+        } else if self.crypto.jwt_secret.len() < MIN_JWT_SECRET_LEN {
+            eprintln!(
+                "⚠️  ВНИМАНИЕ: CFGY_JWT_SECRET слишком короткий ({} символов, рекомендуется минимум {})",
+                self.crypto.jwt_secret.len(),
+                MIN_JWT_SECRET_LEN
+            );
+        }
+
+        Ok(())
     }
 }
 
@@ -77,9 +155,13 @@ impl Default for Config {
                     .unwrap_or_else(|_| "default-jwt-secret-change-in-production".to_string()),
             },
             zid: ZidConfig {
-                base_url: std::env::var("ZID__BASE_URL")
+                issuer: std::env::var("ZID_ISSUER")
+                    .or_else(|_| std::env::var("ZID_BASE_URL"))
                     .unwrap_or_else(|_| "http://localhost:5555".to_string()),
-                callback_url: std::env::var("ZID__CALLBACK_URL")
+                client_id: std::env::var("ZID_CLIENT_ID").unwrap_or_default(),
+                client_secret: std::env::var("ZID_CLIENT_SECRET").unwrap_or_default(),
+                redirect_uri: std::env::var("ZID_REDIRECT_URI")
+                    .or_else(|_| std::env::var("ZID_CALLBACK_URL"))
                     .unwrap_or_else(|_| "http://localhost:5173/auth/zid/callback".to_string()),
             },
         }

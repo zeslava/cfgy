@@ -48,6 +48,7 @@ async fn main() -> Result<()> {
         Commands::Run { command } => run_command(command, &app_config).await,
         Commands::Projects { action } => handle_projects(action, &app_config).await,
         Commands::Token { action } => handle_token(action, &app_config).await,
+        Commands::GenerateSecrets { format } => generate_secrets(format).await,
     }
 }
 
@@ -563,4 +564,51 @@ async fn handle_token(action: TokenAction, app_config: &AppConfig) -> Result<()>
             Ok(())
         }
     }
+}
+
+/// Генерация секретных ключей для сервера
+async fn generate_secrets(format: String) -> Result<()> {
+    use ring::rand::{SecureRandom, SystemRandom};
+
+    const MASTER_KEY_LEN: usize = 32; // 32 байта = 64 hex символа
+    const JWT_SECRET_LEN: usize = 32; // 32 байта = 64 hex символа
+
+    let rng = SystemRandom::new();
+
+    // Генерация master_key (32 байта = 64 hex символа)
+    let mut master_key_bytes = vec![0u8; MASTER_KEY_LEN];
+    rng.fill(&mut master_key_bytes)
+        .context("Не удалось сгенерировать master_key")?;
+    let master_key = hex::encode(&master_key_bytes);
+
+    // Генерация jwt_secret (32 байта = 64 hex символа)
+    let mut jwt_secret_bytes = vec![0u8; JWT_SECRET_LEN];
+    rng.fill(&mut jwt_secret_bytes)
+        .context("Не удалось сгенерировать jwt_secret")?;
+    let jwt_secret = hex::encode(&jwt_secret_bytes);
+
+    match format.as_str() {
+        "env" => {
+            println!("# Сгенерированные секреты для .env файла");
+            println!("# Скопируйте эти строки в ваш .env файл");
+            println!();
+            println!("CFGY_MASTER_KEY={}", master_key);
+            println!("CFGY_JWT_SECRET={}", jwt_secret);
+        }
+        "shell" => {
+            println!("# Команды для экспорта в shell");
+            println!("export CFGY_MASTER_KEY='{}'", master_key);
+            println!("export CFGY_JWT_SECRET='{}'", jwt_secret);
+        }
+        _ => {
+            anyhow::bail!("Неизвестный формат: {}. Поддерживаются: env, shell", format);
+        }
+    }
+
+    println!();
+    println!("✓ Секреты сгенерированы успешно");
+    println!("  Master Key: {} символов (рекомендуется минимум 32)", master_key.len());
+    println!("  JWT Secret: {} символов (рекомендуется минимум 16)", jwt_secret.len());
+
+    Ok(())
 }

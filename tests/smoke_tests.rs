@@ -107,9 +107,9 @@ impl TestClient {
             Err(e) if e.is_connect() => {
                 anyhow::bail!(
                     "Сервер недоступен на {}. Убедитесь, что сервер запущен:\n\
-                    - PostgreSQL: docker compose up -d\n\
-                    - Миграции: make migrate\n\
-                    - Сервер: export DATABASE_URL='...' && export CFGY_MASTER_KEY='...' && export CFGY_JWT_SECRET='...' && cargo run --bin cfgy-server",
+                    - PostgreSQL: task up\n\
+                    - Миграции: task migrate\n\
+                    - Сервер: task run (или вручную с переменными окружения)",
                     self.base_url
                 );
             }
@@ -876,12 +876,9 @@ fn main() {
     println!("Smoke-тесты для CFGY API");
     println!("Убедитесь, что сервер запущен на {}", BASE_URL);
     println!("\nДля запуска сервера выполните:");
-    println!("  1. docker compose up -d  # Запустить PostgreSQL");
-    println!("  2. export DATABASE_URL='postgres://postgres:postgres@localhost:5432/cfgy'");
-    println!("  3. export CFGY_MASTER_KEY='test-master-key-32-bytes-long!!'");
-    println!("  4. export CFGY_JWT_SECRET='test-jwt-secret-key'");
-    println!("  5. make migrate  # Применить миграции");
-    println!("  6. cargo run --bin cfgy-server  # Запустить сервер");
+    println!("  1. task up  # Запустить PostgreSQL в Docker");
+    println!("  2. task migrate  # Применить миграции");
+    println!("  3. task run  # Запустить сервер (или вручную с переменными окружения)");
     println!("\nЗапустите тесты командой: cargo test --bin smoke_tests\n");
 }
 

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
+use sqlx::PgPool;
 
 use crate::adapters::api::auth::extract_user;
 use crate::application::{
@@ -42,10 +43,12 @@ pub struct AppState {
     >,
     pub user_repo: Arc<dyn UserRepository>,
     pub external_identity_repo: Arc<dyn ExternalIdentityRepository>,
+    pub db_pool: PgPool,
 }
 
 const CFGY_SESSION_COOKIE_NAME: &str = "cfgy_session";
 const ZID_STATE_COOKIE_NAME: &str = "cfgy_zid_state";
+const ZID_NEXT_COOKIE_NAME: &str = "cfgy_zid_next";
 
 // ========== Типы для запросов и ответов ==========
 
@@ -131,31 +134,75 @@ pub struct ZidLoginQuery {
     pub next: Option<String>,
 }
 
+/// Query-параметры callback от ZID (OAuth 2.0)
 #[derive(Deserialize)]
 pub struct ZidCallbackQuery {
-    pub ticket: Option<String>,
-    pub state: Option<String>,
-    /// Куда вернуть пользователя после успешного логина (SPA route).
-    /// Пример: /projects
-    pub next: Option<String>,
-    /// Поддержка вариантов, когда ZID кладёт ticket в другой параметр
     pub code: Option<String>,
-    pub token: Option<String>,
+    pub state: Option<String>,
+    pub error: Option<String>,
+    pub error_description: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ZidVerifyRequest {
-    pub ticket: String,
-    /// service должен совпадать 1:1 с return_to/callback URL, который был передан в ZID
-    pub service: String,
+/// Ответ POST /oauth/token от ZID
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
+pub struct ZidTokenResponse {
+    pub access_token: String,
+    #[serde(default)]
+    pub token_type: Option<String>,
+    #[serde(default)]
+    pub expires_in: Option<u64>,
+    #[serde(default)]
+    pub id_token: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ZidVerifyResponse {
-    pub success: bool,
-    pub user_id: String,
-    pub username: String,
-    pub session_id: String,
+/// Ответ GET /oauth/userinfo от ZID (OIDC)
+#[derive(Deserialize, Debug)]
+pub struct ZidUserinfoResponse {
+    pub sub: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub preferred_username: Option<String>,
+}
+
+/// OIDC Discovery: .well-known/openid-configuration
+#[derive(Deserialize, Debug)]
+struct OidcDiscovery {
+    #[serde(rename = "authorization_endpoint")]
+    authorization_endpoint: String,
+    #[serde(rename = "token_endpoint")]
+    token_endpoint: String,
+    #[serde(rename = "userinfo_endpoint")]
+    userinfo_endpoint: Option<String>,
+}
+
+/// Получить endpoints ZID: из discovery или захардкоженные пути
+async fn get_zid_endpoints(issuer: &str) -> (String, String, String) {
+    let base = issuer.trim_end_matches('/');
+    let url = format!("{}/.well-known/openid-configuration", base);
+    let client = reqwest::Client::new();
+    if let Ok(resp) = client.get(&url).send().await {
+        if resp.status().is_success() {
+            if let Ok(discovery) = resp.json::<OidcDiscovery>().await {
+                let userinfo = discovery
+                    .userinfo_endpoint
+                    .unwrap_or_else(|| format!("{}/oauth/userinfo", base));
+                return (
+                    discovery.authorization_endpoint,
+                    discovery.token_endpoint,
+                    userinfo,
+                );
+            }
+        }
+    }
+    (
+        format!("{}/oauth/authorize", base),
+        format!("{}/oauth/token", base),
+        format!("{}/oauth/userinfo", base),
+    )
 }
 
 /// Параметры пути для DELETE параметра
@@ -196,6 +243,8 @@ pub struct TokenResponse {
 // ========== Handlers ==========
 
 /// POST /api/auth/register
+///
+/// Возвращает session_token в JSON. Фронт сохраняет и шлёт Authorization: Bearer.
 pub async fn register(
     State(state): State<AppState>,
     Json(request): Json<RegisterRequest>,
@@ -213,9 +262,7 @@ pub async fn register(
             )
         })?;
 
-    // Создать JWT сессионный токен
-    let session_token = state.auth_service.create_session_token(user.id).ok(); // Если не удалось создать, продолжаем без токена
-
+    let session_token = state.auth_service.create_session_token(user.id).ok();
     Ok((
         StatusCode::CREATED,
         Json(LoginResponse {
@@ -228,337 +275,450 @@ pub async fn register(
 
 /// GET /auth/zid/login
 ///
-/// Генерирует state и редиректит в ZID.
-/// Важно: state сохраняем в httpOnly cookie.
-/// `callback_url` берём из конфигурации сервера, но в него добавляем query state и next.
-///
-/// Пример callback_url (dev через web): http://localhost:5173/auth/zid/callback
+/// OAuth 2.0 Authorization Code: генерирует state, сохраняет в cookie вместе с next,
+/// формирует URL авторизации ZID и редиректит пользователя на страницу входа ZID.
 pub async fn zid_login(Query(q): Query<ZidLoginQuery>) -> impl IntoResponse {
     let config = Config::load().unwrap_or_default();
-    eprintln!(
-        "[ZID] login: next={:?}, callback_url={}",
-        q.next, config.zid.callback_url
-    );
 
-    // state для защиты от CSRF/replay
+    if config.zid.client_id.is_empty() || config.zid.client_secret.is_empty() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "ZID OAuth не настроен (ZID_CLIENT_ID / ZID_CLIENT_SECRET)".to_string(),
+            }),
+        )
+            .into_response();
+    }
+
     let state = Uuid::new_v4().to_string();
-
-    // куда вернёмся в SPA после успешной сессии
     let next = q.next.unwrap_or_else(|| "/projects".to_string());
 
-    // callback должен идти через web, но этот endpoint исполняется на server.
-    // Мы добавляем параметры в callback_url через query.
-    let callback_with_params = format!(
-        "{}?state={}&next={}",
-        config.zid.callback_url,
-        urlencoding::encode(&state),
-        urlencoding::encode(&next)
-    );
-
-    // ZID ожидает return_to; по вашей договорённости используем корневой `/` у zid.
+    let (authorization_endpoint, _, _) = get_zid_endpoints(&config.zid.issuer).await;
+    let redirect_uri_encoded = urlencoding::encode(&config.zid.redirect_uri);
     let zid_login_url = format!(
-        "{}/?return_to={}",
-        config.zid.base_url.trim_end_matches('/'),
-        urlencoding::encode(&callback_with_params)
+        "{}?response_type=code&client_id={}&redirect_uri={}&scope=openid%20profile%20email&state={}",
+        authorization_endpoint,
+        urlencoding::encode(&config.zid.client_id),
+        redirect_uri_encoded,
+        urlencoding::encode(&state)
     );
 
-    // state cookie: httpOnly, SameSite=Lax (чтобы работало при redirect), Path=/
-    // Secure в проде должен быть true (здесь ставим условно по схеме callback_url).
-    let secure = config.zid.callback_url.starts_with("https://");
-    let set_cookie = format!(
+    let secure = config.zid.redirect_uri.starts_with("https://");
+    let secure_flag = if secure { "; Secure" } else { "" };
+    let set_state_cookie = format!(
         "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300{secure_flag}",
         name = ZID_STATE_COOKIE_NAME,
         value = state,
-        secure_flag = if secure { "; Secure" } else { "" }
+        secure_flag = secure_flag
+    );
+    let set_next_cookie = format!(
+        "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300{secure_flag}",
+        name = ZID_NEXT_COOKIE_NAME,
+        value = urlencoding::encode(&next),
+        secure_flag = secure_flag
     );
 
     let mut headers = HeaderMap::new();
-    headers.insert(
+    headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&set_cookie).unwrap(),
+        HeaderValue::from_str(&set_state_cookie).unwrap(),
     );
-    (headers, Redirect::temporary(&zid_login_url))
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&set_next_cookie).unwrap(),
+    );
+    (headers, Redirect::temporary(&zid_login_url)).into_response()
+}
+
+/// Вспомогательная: прочитать значение cookie из заголовка Cookie
+fn get_cookie_value(cookie_header: &str, name: &str) -> Option<String> {
+    for part in cookie_header.split(';') {
+        let p = part.trim();
+        if let Some(rest) = p.strip_prefix(&format!("{}=", name)) {
+            if !rest.is_empty() {
+                return Some(rest.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Вернуть редирект на /login с ошибкой и очисткой state/next cookies
+fn zid_callback_error_redirect(
+    message: &str,
+    secure: bool,
+) -> (HeaderMap, axum::response::Redirect) {
+    let secure_flag = if secure { "; Secure" } else { "" };
+    let clear_state = format!(
+        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{secure_flag}",
+        name = ZID_STATE_COOKIE_NAME,
+        secure_flag = secure_flag
+    );
+    let clear_next = format!(
+        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{secure_flag}",
+        name = ZID_NEXT_COOKIE_NAME,
+        secure_flag = secure_flag
+    );
+    let mut headers = HeaderMap::new();
+    headers.append(header::SET_COOKIE, HeaderValue::from_str(&clear_state).unwrap());
+    headers.append(header::SET_COOKIE, HeaderValue::from_str(&clear_next).unwrap());
+    let login_url = format!("/login?error={}", urlencoding::encode(message));
+    (headers, Redirect::temporary(&login_url))
 }
 
 /// GET /auth/zid/callback
 ///
-/// Обрабатывает callback от ZID:
-/// - проверяет state (query vs cookie)
-/// - вызывает ZID /verify
-/// - находит/создаёт пользователя в CFGY и связывает его с ZID user_id
-/// - создаёт локальную cfgy-сессию (JWT) и кладёт в httpOnly cookie
-/// - редиректит в `next` (SPA route)
+/// OAuth 2.0 callback от ZID: проверяет state, обменивает code на токены на бэкенде,
+/// при необходимости запрашивает userinfo, находит/создаёт пользователя в CFGY,
+/// создаёт сессию (JWT в cookie) и редиректит в next.
 pub async fn zid_callback(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(q): Query<ZidCallbackQuery>,
-    axum::extract::RawQuery(raw_query): axum::extract::RawQuery,
 ) -> impl IntoResponse {
     let config = Config::load().unwrap_or_default();
+    let secure = config.zid.redirect_uri.starts_with("https://");
 
-    // Логируем для отладки
-    eprintln!(
-        "[ZID] callback: raw_query={:?}, ticket={:?}, code={:?}, token={:?}, state={:?}, next={:?}",
-        raw_query, q.ticket, q.code, q.token, q.state, q.next
-    );
+    if let Some(ref err) = q.error {
+        let msg = q
+            .error_description
+            .as_deref()
+            .unwrap_or(err);
+        return zid_callback_error_redirect(msg, secure).into_response();
+    }
 
-    // ZID может добавить ticket в next параметр вместо отдельного query param
-    // Пример: next=/projects?ticket=xxx
-    let (ticket, next_clean) = if let Some(next_val) = &q.next {
-        if let Some(pos) = next_val.find("?ticket=") {
-            let ticket_part = &next_val[pos + 8..];
-            let next_clean = next_val[..pos].to_string();
-            (Some(ticket_part.to_string()), Some(next_clean))
-        } else if let Some(pos) = next_val.find("&ticket=") {
-            let ticket_part = &next_val[pos + 8..];
-            let next_clean = next_val[..pos].to_string();
-            (Some(ticket_part.to_string()), Some(next_clean))
-        } else {
-            (None, q.next.clone())
+    let code = match &q.code {
+        Some(c) if !c.is_empty() => c.clone(),
+        _ => {
+            return zid_callback_error_redirect("Отсутствует параметр code", secure).into_response();
         }
-    } else {
-        (None, q.next.clone())
     };
 
-    let ticket = q
-        .ticket
-        .or(q.code)
-        .or(q.token)
-        .or(ticket)
-        .unwrap_or_else(|| "".to_string());
-    let state_from_query = q.state.unwrap_or_else(|| "".to_string());
+    let state_from_query = match &q.state {
+        Some(s) if !s.is_empty() => s.clone(),
+        _ => {
+            return zid_callback_error_redirect("Отсутствует параметр state", secure).into_response();
+        }
+    };
 
-    eprintln!(
-        "[ZID] parsed: ticket={}, next_clean={:?}",
-        ticket, next_clean
-    );
-
-    if ticket.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "Missing ticket".to_string(),
-            }),
-        )
-            .into_response();
-    }
-
-    if state_from_query.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "Missing state".to_string(),
-            }),
-        )
-            .into_response();
-    }
-
-    // достаём state из cookie, сравниваем с query
     let cookie_header = headers
         .get(header::COOKIE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-
-    let mut state_from_cookie: Option<String> = None;
-    for part in cookie_header.split(';') {
-        let p = part.trim();
-        if let Some(rest) = p.strip_prefix(&format!("{}=", ZID_STATE_COOKIE_NAME)) {
-            state_from_cookie = Some(rest.to_string());
-            break;
+    let state_from_cookie = match get_cookie_value(cookie_header, ZID_STATE_COOKIE_NAME) {
+        Some(s) => s,
+        None => {
+            return zid_callback_error_redirect("Неверный или истёкший state", secure).into_response();
         }
+    };
+    if state_from_cookie != state_from_query {
+        return zid_callback_error_redirect("Неверный state (CSRF)", secure).into_response();
     }
 
-    if state_from_cookie.as_deref() != Some(state_from_query.as_str()) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "Invalid state".to_string(),
-            }),
-        )
-            .into_response();
-    }
+    let next_encoded = get_cookie_value(cookie_header, ZID_NEXT_COOKIE_NAME);
+    let next = next_encoded
+        .as_ref()
+        .and_then(|s| urlencoding::decode(s).ok())
+        .map(|c| c.into_owned())
+        .unwrap_or_else(|| "/projects".to_string());
 
-    // service должен совпадать 1:1 с return_to
-    // В login мы добавляли query-параметры state/next внутрь callback_url,
-    // поэтому здесь собираем такой же service.
-    let next = next_clean.unwrap_or_else(|| "/projects".to_string());
-    let service = format!(
-        "{}?state={}&next={}",
-        config.zid.callback_url,
-        urlencoding::encode(&state_from_query),
-        urlencoding::encode(&next)
+    let (_, token_endpoint, userinfo_endpoint) =
+        get_zid_endpoints(&config.zid.issuer).await;
+
+    let token_body = format!(
+        "grant_type=authorization_code&client_id={}&client_secret={}&redirect_uri={}&code={}",
+        urlencoding::encode(&config.zid.client_id),
+        urlencoding::encode(&config.zid.client_secret),
+        urlencoding::encode(&config.zid.redirect_uri),
+        urlencoding::encode(&code)
     );
 
-    let verify_url = format!("{}/verify", config.zid.base_url.trim_end_matches('/'));
-    let body = ZidVerifyRequest { ticket, service };
-
     let client = reqwest::Client::new();
-    let verify_resp = match client.post(verify_url).json(&body).send().await {
+    let token_resp = match client
+        .post(&token_endpoint)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(token_body)
+        .send()
+        .await
+    {
         Ok(r) => r,
         Err(e) => {
-            return (
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse {
-                    error: format!("ZID verify request failed: {}", e),
-                }),
+            return zid_callback_error_redirect(
+                &format!("Ошибка запроса токена к ZID: {}", e),
+                secure,
             )
                 .into_response();
         }
     };
 
-    if !verify_resp.status().is_success() {
-        let text = verify_resp.text().await.unwrap_or_else(|_| "".to_string());
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: format!("ZID verify failed: {}", text),
-            }),
+    if !token_resp.status().is_success() {
+        let text = token_resp.text().await.unwrap_or_default();
+        return zid_callback_error_redirect(
+            &format!("ZID отклонил обмен кода: {}", text),
+            secure,
         )
             .into_response();
     }
 
-    let zid_identity: ZidVerifyResponse = match verify_resp.json().await {
-        Ok(v) => v,
+    let token_data: ZidTokenResponse = match token_resp.json().await {
+        Ok(t) => t,
         Err(e) => {
-            return (
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse {
-                    error: format!("ZID verify response parse failed: {}", e),
-                }),
+            return zid_callback_error_redirect(
+                &format!("Не удалось разобрать ответ ZID: {}", e),
+                secure,
             )
                 .into_response();
         }
     };
 
-    if !zid_identity.success {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "ZID verify returned success=false".to_string(),
-            }),
-        )
-            .into_response();
+    tracing::debug!(
+        "ZID token response: token_type={:?}, has_id_token={}, expires_in={:?}",
+        token_data.token_type,
+        token_data.id_token.is_some(),
+        token_data.expires_in
+    );
+
+    let access_token = token_data.access_token.clone();
+    let id_token = token_data.id_token.clone();
+    let mut sub = String::new();
+    let mut username = String::new();
+    // Реальный email из ZID (userinfo) — используем при создании пользователя, чтобы не подставлять @zid.local при наличии email.
+    let mut email_from_zid: Option<String> = None;
+
+    // Запрос userinfo: часть провайдеров принимает access_token, часть — id_token (JWT).
+    let (userinfo_status, userinfo_raw) = {
+        let resp = client
+            .get(&userinfo_endpoint)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .send()
+            .await;
+        let (status, body) = match resp {
+            Ok(r) => (r.status(), r.text().await.unwrap_or_default()),
+            Err(e) => {
+                tracing::warn!("ZID userinfo запрос не удался: {}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, String::new())
+            }
+        };
+        tracing::debug!("ZID userinfo (Bearer access_token): url={}, status={}, body={}", userinfo_endpoint, status, body);
+        if status.is_success() {
+            (status, body)
+        } else if status.as_u16() == 401 && id_token.as_deref().map_or(false, |t| !t.is_empty()) {
+            // 401 — пробуем id_token в заголовке
+            tracing::debug!("ZID userinfo 401, повтор с Bearer id_token");
+            let resp2 = client
+                .get(&userinfo_endpoint)
+                .header("Authorization", format!("Bearer {}", id_token.as_deref().unwrap_or_default()))
+                .send()
+                .await;
+            let (status2, body2) = match resp2 {
+                Ok(r) => (r.status(), r.text().await.unwrap_or_default()),
+                Err(e) => {
+                    tracing::warn!("ZID userinfo (id_token) запрос не удался: {}", e);
+                    (status, body)
+                }
+            };
+            tracing::debug!("ZID userinfo (Bearer id_token): status={}, body={}", status2, body2);
+            if status2.is_success() {
+                (status2, body2)
+            } else if status2.as_u16() == 401 {
+                // Оба Bearer не подошли — пробуем access_token в query (?access_token=...)
+                let url_with_token = format!("{}?access_token={}", userinfo_endpoint, urlencoding::encode(&access_token));
+                tracing::debug!("ZID userinfo 401, повтор с query access_token");
+                let resp3 = client.get(&url_with_token).send().await;
+                let (status3, body3) = match resp3 {
+                    Ok(r) => (r.status(), r.text().await.unwrap_or_default()),
+                    Err(e) => {
+                        tracing::warn!("ZID userinfo (?access_token) запрос не удался: {}", e);
+                        (status2, body2)
+                    }
+                };
+                tracing::debug!("ZID userinfo (?access_token): status={}, body={}", status3, body3);
+                (status3, body3)
+            } else {
+                (status2, body2)
+            }
+        } else {
+            (status, body)
+        }
+    };
+
+    if userinfo_status.is_success() {
+        if let Ok(userinfo) = serde_json::from_str::<ZidUserinfoResponse>(&userinfo_raw) {
+            tracing::debug!(
+                "ZID userinfo parsed: sub={}, name={:?}, email={:?}, preferred_username={:?}",
+                userinfo.sub,
+                userinfo.name,
+                userinfo.email,
+                userinfo.preferred_username
+            );
+            sub = userinfo.sub.clone();
+            email_from_zid = userinfo.email.clone();
+            username = userinfo
+                .preferred_username
+                .or(userinfo.name)
+                .or(email_from_zid.clone())
+                .unwrap_or_else(|| sub.clone());
+        } else {
+            tracing::warn!(
+                "ZID userinfo не удалось распарсить как ZidUserinfoResponse, сырой body: {}",
+                userinfo_raw
+            );
+        }
     }
 
-    let zid_user_id = zid_identity.user_id.clone();
-    let zid_username = zid_identity.username.clone();
-
-    if zid_user_id.is_empty() || zid_username.is_empty() {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "ZID verify returned empty user_id/username".to_string(),
-            }),
-        )
-            .into_response();
+    // Если userinfo не отдал данные (401 и т.д.) — берём из id_token (JWT payload).
+    if sub.is_empty() || (username.is_empty() && email_from_zid.is_none()) {
+        if let Some(ref id_token) = token_data.id_token {
+            if let Some(claims) = parse_claims_from_id_token(id_token) {
+                tracing::debug!(
+                    "ZID id_token claims: sub={}, name={:?}, email={:?}, preferred_username={:?}",
+                    claims.sub,
+                    claims.name,
+                    claims.email,
+                    claims.preferred_username
+                );
+                if sub.is_empty() {
+                    sub = claims.sub;
+                }
+                if email_from_zid.is_none() {
+                    email_from_zid = claims.email.clone();
+                }
+                if username.is_empty() {
+                    username = claims
+                        .preferred_username
+                        .or(claims.name)
+                        .or(claims.email)
+                        .unwrap_or_else(|| sub.clone());
+                }
+            }
+        }
     }
 
-    // 1) try find linked user_id by (provider, subject=zid_user_id)
+    if sub.is_empty() {
+        return zid_callback_error_redirect(
+            "Не удалось получить идентификатор пользователя из ZID",
+            secure,
+        )
+        .into_response();
+    }
+    if username.is_empty() {
+        username = sub.clone();
+    }
+
+    // Вычисляем email один раз — используем при создании/обновлении и при обновлении профиля ниже.
+    let email_to_save = email_from_zid.unwrap_or_else(|| {
+        if username.contains('@') {
+            username.clone()
+        } else {
+            format!("{}@zid.local", username)
+        }
+    });
+
     let maybe_user_id = match state
         .external_identity_repo
-        .find_user_id("zid", &zid_user_id)
+        .find_user_id("zid", &sub)
         .await
     {
         Ok(v) => v,
         Err(e) => {
-            return (
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse {
-                    error: format!("Failed to lookup external identity: {}", e),
-                }),
+            return zid_callback_error_redirect(
+                &format!("Ошибка поиска привязки: {}", e),
+                secure,
             )
                 .into_response();
         }
     };
 
-    // 2) resolve/create user
-    let user_id = if let Some(user_id) = maybe_user_id {
-        user_id
+    let user_id = if let Some(uid) = maybe_user_id {
+        uid
     } else {
-        // no link yet -> provision user by username (unique)
-        // Если username уже похож на email — используем его, иначе генерируем placeholder
-        let email = if zid_username.contains('@') {
-            zid_username.clone()
-        } else {
-            format!("{}@zid.local", zid_username)
-        };
-
-        // Try to reuse existing user by username (if already provisioned but link missing)
-        let existing = match state.user_repo.find_by_username(&zid_username).await {
+        let existing = match state.user_repo.find_by_username(&username).await {
             Ok(v) => v,
             Err(e) => {
-                return (
-                    StatusCode::BAD_GATEWAY,
-                    Json(ErrorResponse {
-                        error: format!("Failed to find user by username: {}", e),
-                    }),
+                return zid_callback_error_redirect(
+                    &format!("Ошибка поиска пользователя: {}", e),
+                    secure,
                 )
                     .into_response();
             }
         };
-
         let user = if let Some(u) = existing {
             u
         } else {
-            match state.user_repo.create_sso_user(&email, &zid_username).await {
+            match state.user_repo.create_sso_user(&email_to_save, &username).await {
                 Ok(u) => u,
                 Err(e) => {
-                    return (
-                        StatusCode::BAD_GATEWAY,
-                        Json(ErrorResponse {
-                            error: format!("Failed to create SSO user: {}", e),
-                        }),
+                    return zid_callback_error_redirect(
+                        &format!("Ошибка создания пользователя: {}", e),
+                        secure,
                     )
-                        .into_response();
+                    .into_response();
                 }
             }
         };
-
-        // Link identity
         if let Err(e) = state
             .external_identity_repo
-            .link_user(user.id, "zid", &zid_user_id)
+            .link_user(user.id, "zid", &sub)
             .await
         {
-            return (
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse {
-                    error: format!("Failed to link external identity: {}", e),
-                }),
+            return zid_callback_error_redirect(
+                &format!("Ошибка привязки идентичности: {}", e),
+                secure,
             )
-                .into_response();
+            .into_response();
         }
-
         user.id
     };
 
-    // 3) create session JWT + set httpOnly cookie
+    // Обновляем email/username из ZID при каждом входе (актуальные данные из провайдера).
+    if let Err(e) = state
+        .user_repo
+        .update_profile(user_id, &email_to_save, &username)
+        .await
+    {
+        return zid_callback_error_redirect(
+            &format!("Ошибка обновления профиля: {}", e),
+            secure,
+        )
+        .into_response();
+    }
+
     let session_token = match state.auth_service.create_session_token(user_id) {
         Ok(t) => t,
         Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: format!("Failed to create session token: {}", e),
-                }),
+            return zid_callback_error_redirect(
+                &format!("Ошибка создания сессии: {}", e),
+                secure,
             )
-                .into_response();
+            .into_response();
         }
     };
 
-    let secure = config.zid.callback_url.starts_with("https://");
+    let secure_flag = if secure { "; Secure" } else { "" };
+    // В dev (localhost) ставим Domain=localhost, чтобы cookie работала и на 5173, и на 8080
+    let domain_flag = if config.zid.redirect_uri.contains("localhost") {
+        "; Domain=localhost"
+    } else {
+        ""
+    };
     let set_session_cookie = format!(
-        "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400{secure_flag}",
+        "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400{domain_flag}{secure_flag}",
         name = CFGY_SESSION_COOKIE_NAME,
         value = session_token,
-        secure_flag = if secure { "; Secure" } else { "" }
+        domain_flag = domain_flag,
+        secure_flag = secure_flag
     );
-
-    // clear state cookie (prevent replay)
     let clear_state_cookie = format!(
-        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{secure_flag}",
+        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{domain_flag}{secure_flag}",
         name = ZID_STATE_COOKIE_NAME,
-        secure_flag = if secure { "; Secure" } else { "" }
+        domain_flag = domain_flag,
+        secure_flag = secure_flag
+    );
+    let clear_next_cookie = format!(
+        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{domain_flag}{secure_flag}",
+        name = ZID_NEXT_COOKIE_NAME,
+        domain_flag = domain_flag,
+        secure_flag = secure_flag
     );
 
     let mut out_headers = HeaderMap::new();
@@ -570,15 +730,116 @@ pub async fn zid_callback(
         header::SET_COOKIE,
         HeaderValue::from_str(&clear_state_cookie).unwrap(),
     );
+    out_headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&clear_next_cookie).unwrap(),
+    );
 
-    (out_headers, Redirect::temporary(&next)).into_response()
+    // Абсолютный URL редиректа: браузер после прокси должен уйти на тот же origin (5173), а не на 8080
+    let base = {
+        let uri = &config.zid.redirect_uri;
+        if let Some(prefix) = uri.find("://") {
+            let after = &uri[prefix + 3..];
+            if let Some(slash) = after.find('/') {
+                uri[..prefix + 3 + slash].to_string()
+            } else {
+                uri.to_string()
+            }
+        } else {
+            String::new()
+        }
+    };
+    let redirect_url = if base.is_empty() {
+        format!("{}#session_token={}", next, urlencoding::encode(&session_token))
+    } else {
+        let path = next.strip_prefix('/').unwrap_or(next.as_str());
+        format!(
+            "{}/{}#session_token={}",
+            base,
+            path,
+            urlencoding::encode(&session_token)
+        )
+    };
+    (out_headers, Redirect::temporary(&redirect_url)).into_response()
+}
+
+/// Claims из payload id_token (JWT) — sub и опционально email, name, preferred_username.
+/// Без верификации подписи (достаточно для заполнения профиля при 401 от userinfo).
+fn parse_claims_from_id_token(id_token: &str) -> Option<IdTokenClaims> {
+    let parts: Vec<&str> = id_token.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let payload_b64 = parts[1];
+    use base64::Engine;
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .ok()?;
+    let payload: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    let sub = payload.get("sub").and_then(|v| v.as_str()).map(String::from)?;
+    let email = payload.get("email").and_then(|v| v.as_str()).map(String::from);
+    let name = payload.get("name").and_then(|v| v.as_str()).map(String::from);
+    let preferred_username = payload
+        .get("preferred_username")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    Some(IdTokenClaims {
+        sub,
+        email,
+        name,
+        preferred_username,
+    })
+}
+
+struct IdTokenClaims {
+    sub: String,
+    email: Option<String>,
+    name: Option<String>,
+    preferred_username: Option<String>,
+}
+
+/// GET /api/auth/session
+///
+/// Обменивает cookie сессии (после OAuth redirect) на токен в теле ответа.
+/// Фронт вызывает с credentials: include, получает session_token, сохраняет и дальше шлёт Authorization: Bearer.
+/// Cookie после ответа очищается (одноразовый обмен).
+pub async fn session(headers: HeaderMap) -> impl IntoResponse {
+    let config = Config::load().unwrap_or_default();
+    let secure = config.zid.redirect_uri.starts_with("https://");
+    let domain_flag = if config.zid.redirect_uri.contains("localhost") {
+        "; Domain=localhost"
+    } else {
+        ""
+    };
+    let secure_flag = if secure { "; Secure" } else { "" };
+    let clear_cookie = format!(
+        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{domain_flag}{secure_flag}",
+        name = CFGY_SESSION_COOKIE_NAME,
+        domain_flag = domain_flag,
+        secure_flag = secure_flag
+    );
+
+    let cookie_header = headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let token = get_cookie_value(cookie_header, CFGY_SESSION_COOKIE_NAME);
+
+    let mut res = match token {
+        Some(t) => (StatusCode::OK, Json(serde_json::json!({ "session_token": t }))).into_response(),
+        None => (StatusCode::NO_CONTENT, ()).into_response(),
+    };
+    res.headers_mut().insert(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&clear_cookie).unwrap(),
+    );
+    res
 }
 
 /// GET /api/auth/me
 ///
 /// Возвращает текущего пользователя.
-/// Для Web UI — работает через httpOnly cookie `cfgy_session` (см. extract_user()).
-/// Для CLI/API — также поддерживает Authorization header (fallback).
+/// Поддерживает Authorization: Bearer (session token) и cookie (для одноразового обмена через /api/auth/session).
 pub async fn me(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -613,17 +874,38 @@ pub async fn me(
     }))
 }
 
+/// GET /health
+///
+/// Health check endpoint с проверкой доступности базы данных
+pub async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
+    // Проверка доступности БД через простой запрос
+    match sqlx::query("SELECT 1").execute(&state.db_pool).await {
+        Ok(_) => (StatusCode::OK, "OK"),
+        Err(e) => {
+            tracing::error!("Database health check failed: {}", e);
+            (StatusCode::SERVICE_UNAVAILABLE, "DB unavailable")
+        }
+    }
+}
+
 /// POST /api/auth/logout
 ///
 /// Очищает httpOnly cookie веб-сессии (`cfgy_session`).
 pub async fn logout() -> impl IntoResponse {
     let config = Config::load().unwrap_or_default();
-    let secure = config.zid.callback_url.starts_with("https://");
+    let secure = config.zid.redirect_uri.starts_with("https://");
+    let domain_flag = if config.zid.redirect_uri.contains("localhost") {
+        "; Domain=localhost"
+    } else {
+        ""
+    };
+    let secure_flag = if secure { "; Secure" } else { "" };
 
     let clear_session_cookie = format!(
-        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{secure_flag}",
+        "{name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{domain_flag}{secure_flag}",
         name = CFGY_SESSION_COOKIE_NAME,
-        secure_flag = if secure { "; Secure" } else { "" }
+        domain_flag = domain_flag,
+        secure_flag = secure_flag
     );
 
     let mut out_headers = HeaderMap::new();
@@ -636,6 +918,8 @@ pub async fn logout() -> impl IntoResponse {
 }
 
 /// POST /api/auth/login
+///
+/// Возвращает session_token в JSON. Фронт сохраняет и шлёт Authorization: Bearer.
 pub async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,
@@ -653,9 +937,7 @@ pub async fn login(
             )
         })?;
 
-    // Создать JWT сессионный токен
-    let session_token = state.auth_service.create_session_token(user.id).ok(); // Если не удалось создать, продолжаем без токена
-
+    let session_token = state.auth_service.create_session_token(user.id).ok();
     Ok(Json(LoginResponse {
         user_id: user.id,
         email: user.email,

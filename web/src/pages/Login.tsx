@@ -1,6 +1,6 @@
 // Страница входа - реализована по дизайну Figma с использованием токенов
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
@@ -8,6 +8,7 @@ import logoImage from "@/assets/logo.svg";
 import "@/styles/pages/login.css";
 
 const Login: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -15,9 +16,18 @@ const Login: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  // Показать ошибку из query (редирект после неудачного входа через ZID)
+  useEffect(() => {
+    const errorFromUrl = searchParams.get("error");
+    if (errorFromUrl) {
+      setError(decodeURIComponent(errorFromUrl));
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const handleZidLogin = () => {
-    // Инициируем SSO через server -> ZID -> callback (web) -> server sets httpOnly cookie
-    window.location.href = "/auth/zid/login?next=/projects";
+    // OAuth 2.0: редирект на сервер -> ZID authorize -> callback -> сессия в cookie
+    window.location.href = "/oauth/zid/login?next=/projects";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

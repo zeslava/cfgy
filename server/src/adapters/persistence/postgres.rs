@@ -106,6 +106,25 @@ impl UserRepository for PostgresUserRepository {
 
         Ok(user)
     }
+
+    async fn update_profile(&self, id: Uuid, email: &str, username: &str) -> Result<User> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            UPDATE users
+            SET email = $1, username = $2, updated_at = now()
+            WHERE id = $3
+            RETURNING id, email, username, password_hash, created_at, updated_at
+            "#,
+        )
+        .bind(email)
+        .bind(username)
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .context("Не удалось обновить профиль пользователя")?;
+
+        Ok(user)
+    }
 }
 
 #[async_trait]

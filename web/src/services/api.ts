@@ -1,6 +1,20 @@
 // HTTP клиент для работы с CFGY API
+// Аутентификация: session_token в localStorage, запросы с Authorization: Bearer.
 
 const API_BASE_URL = "/api";
+const SESSION_TOKEN_KEY = "cfgy_session_token";
+
+export function getSessionToken(): string | null {
+  return localStorage.getItem(SESSION_TOKEN_KEY);
+}
+
+export function setSessionToken(token: string): void {
+  localStorage.setItem(SESSION_TOKEN_KEY, token);
+}
+
+export function clearSessionToken(): void {
+  localStorage.removeItem(SESSION_TOKEN_KEY);
+}
 
 export interface ApiError {
   error: string;
@@ -85,27 +99,30 @@ export interface CreateTokenResponse {
 // Утилиты для работы с API
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {},
+  options: RequestInit & { skipAuth?: boolean } = {},
 ): Promise<T> {
+  const { skipAuth, ...fetchOptions } = options;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
+  const token = getSessionToken();
+  if (token && !skipAuth) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   if (options.headers) {
     Object.assign(headers, options.headers);
   }
 
-  // Web auth через httpOnly cookies
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
+    ...fetchOptions,
     credentials: "include",
     headers,
   });
 
   if (!response.ok) {
-    // Если получили 401 Unauthorized, сессия недействительна - очищаем локальные данные UI
     if (response.status === 401) {
-      localStorage.removeItem("user");
+      clearSessionToken();
       // Перенаправляем на страницу входа, если не находимся на ней
       if (
         window.location.pathname !== "/login" &&
@@ -156,6 +173,10 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  /** Обмен cookie (после OAuth redirect) на токен. Вызывать с credentials, без Bearer. */
+  session: (): Promise<{ session_token: string } | undefined> =>
+    request("/auth/session", { skipAuth: true }),
 
   me: (): Promise<LoginResponse & { username?: string | null }> =>
     request("/auth/me"),

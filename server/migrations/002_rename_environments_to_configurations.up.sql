@@ -32,4 +32,3 @@ CREATE TRIGGER update_configurations_updated_at BEFORE UPDATE ON configurations
 -- Обновить комментарии
 COMMENT ON TABLE configurations IS 'Конфигурации проекта';
 COMMENT ON COLUMN config_keys.configuration_id IS 'ID конфигурации';
-

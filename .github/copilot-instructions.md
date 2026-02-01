@@ -49,12 +49,20 @@ server/src/
 ## Build & Test Commands
 
 ```bash
-# Core workflows (from Makefile)
-make run          # Full Docker Compose: PostgreSQL + server + web
-make dev-local    # PostgreSQL in Docker + server run locally
-make test         # cargo test
-make test-smoke   # Integration tests (requires server on :8080)
-task run          # Alternative: PostgreSQL + server (using Taskfile)
+# Core workflows (using Taskfile)
+task run          # PostgreSQL in Docker + server run locally
+task web          # Web dev server (Vite)
+task up           # Start PostgreSQL in Docker
+task down         # Stop containers
+task migrate      # Apply database migrations
+
+# Standard Rust commands
+cargo test        # Run tests
+cargo test --bin smoke_tests  # Integration tests (requires server on :8080)
+cargo build       # Build project
+cargo check       # Check code
+cargo clippy      # Lint code
+cargo fmt         # Format code
 ```
 
 **Key env vars**:
@@ -307,7 +315,7 @@ curl http://zid-host:5555/health
 
 - **Unit tests** — Implement mock port traits, test application layer in isolation
 - **Smoke tests** (`tests/smoke_tests.rs`) — Full HTTP integration, require running server on `:8080`
-- Run smoke tests: `make test-smoke` (or `cargo test -p smoke_tests`)
+- Run smoke tests: `cargo test --bin smoke_tests`
 
 ## Common Modifications & Data Flow
 
@@ -404,8 +412,8 @@ The server serves web assets at `/`. After `npm run build` in `web/`, distribute
 | `cli/src/client.rs`                | HTTP client for server API calls                               |
 | `cli/src/storage.rs`               | Local `.cfgy.yaml` file handling                               |
 | `docker-compose.yml`               | PostgreSQL + server container config                           |
-| `Makefile`                         | All build/test/run commands                                    |
-| `tests/smoke_tests.rs`             | API integration tests; run with `make test-smoke`              |
+| `Taskfile.yml`                     | Task runner for common development commands                     |
+| `tests/smoke_tests.rs`             | API integration tests; run with `cargo test --bin smoke_tests`  |
 | `web/src/components/`              | React components (one per file)                                |
 | `web/src/services/`                | API client services                                            |
 
@@ -415,7 +423,7 @@ The server serves web assets at `/`. After `npm run build` in `web/`, distribute
 
 ```bash
 # View server logs
-make logs-server  # or tail -f docker-compose logs cfgy-server
+docker compose logs -f server
 
 # Debug logging
 RUST_LOG=debug cargo run -p cfgy-server

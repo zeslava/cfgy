@@ -20,12 +20,27 @@ use crate::ports::{ExternalIdentityRepository, UserRepository};
 async fn main() -> anyhow::Result<()> {
     use std::io::Write;
     eprintln!("[1/7] Инициализация логирования...");
-    tracing_subscriber::fmt::init();
-    eprintln!("[1/7] ✓ Логирование инициализировано");
+    
+    // Настройка формата логирования
+    let log_format = std::env::var("LOG_FORMAT").unwrap_or_default();
+    if log_format == "json" {
+        use tracing_subscriber::EnvFilter;
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+        eprintln!("[1/7] ✓ Логирование инициализировано (JSON формат)");
+    } else {
+        use tracing_subscriber::EnvFilter;
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+        eprintln!("[1/7] ✓ Логирование инициализировано (человекочитаемый формат)");
+    }
     let _ = std::io::stderr().flush();
 
     eprintln!("[2/7] Загрузка конфигурации...");
-    let mut config = match config::Config::load() {
+    let config = match config::Config::load() {
         Ok(cfg) => {
             eprintln!("[2/7] ✓ Конфигурация загружена из переменных окружения");
             cfg
@@ -35,18 +50,7 @@ async fn main() -> anyhow::Result<()> {
                 "[2/7] ⚠ Ошибка загрузки конфигурации: {}. Используются значения по умолчанию.",
                 e
             );
-            let mut default = config::Config::default();
-            // Переопределяем из переменных окружения, если они есть
-            if let Ok(db_url) = std::env::var("DATABASE__URL") {
-                default.database.url = db_url;
-            }
-            if let Ok(host) = std::env::var("SERVER__HOST") {
-                default.server.host = host;
-            }
-            if let Ok(port) = std::env::var("SERVER__PORT") {
-                default.server.port = port.parse().unwrap_or(8080);
-            }
-            default
+            config::Config::default()
         }
     };
 
@@ -112,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Инициализация репозиториев
     eprintln!("[5/7] Инициализация репозиториев...");
-    let repositories = PostgresUserRepository::new(pool);
+    let repositories = PostgresUserRepository::new(pool.clone());
     eprintln!("[5/7] ✓ Репозитории инициализированы");
 
     // Репозиторий пользователей (для SSO provisioning / lookup)
@@ -171,6 +175,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service,
         user_repo,
         external_identity_repo,
+        db_pool: pool.clone(),
     };
     eprintln!("[6/7] ✓ Состояние приложения создано");
 
@@ -211,11 +216,44 @@ async fn main() -> anyhow::Result<()> {
     eprintln!("[7/7] ✓ Сервер готов принимать подключения");
     eprintln!("[7/7] Ожидание запросов...\n");
 
-    if let Err(e) = axum::serve(listener, app).await {
+    // Настройка graceful shutdown
+    let shutdown = async {
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("failed to install signal handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => {},
+            _ = terminate => {},
+        }
+        tracing::info!("Получен сигнал завершения, начинается graceful shutdown...");
+        eprintln!("\n[shutdown] Получен сигнал завершения, начинается graceful shutdown...");
+    };
+
+    if let Err(e) = axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
+        .await
+    {
         eprintln!("[7/7] ✗ Ошибка при работе сервера: {}", e);
         eprintln!("[7/7] ✗ Детали: {:?}", e);
         return Err(anyhow::anyhow!("Server error: {}", e));
     }
+
+    tracing::info!("Сервер завершил работу");
+    eprintln!("[shutdown] Сервер успешно завершил работу");
 
     Ok(())
 }

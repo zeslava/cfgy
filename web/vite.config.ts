@@ -35,8 +35,13 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      // Прокси ZID SSO маршрутов (server -> ZID -> callback (web) -> server)
+      // Прокси ZID OAuth маршрутов (server -> ZID -> callback -> server)
       "/auth/zid": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+        secure: false,
+      },
+      "/oauth/zid": {
         target: "http://localhost:8080",
         changeOrigin: true,
         secure: false,

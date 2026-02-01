@@ -17,7 +17,7 @@ import {
   DataTableActions,
   DataTableEmpty,
 } from "../components/ui/DataTable";
-import { getInitialsFromEmail } from "@/utils/avatar";
+import { getInitialsFromEmail, getDisplayName } from "@/utils/avatar";
 import { sortByString } from "../utils/sort";
 import { useToast } from "../contexts/ToastContext";
 import "@/styles/pages/profile.css";
@@ -121,11 +121,11 @@ const Profile: React.FC = () => {
       <div className="profile-user-section">
         <Avatar
           size="big"
-          initials={getInitialsFromEmail(user?.username || "U")}
+          initials={getInitialsFromEmail(user?.email || getDisplayName(user) || "U")}
         />
         <div className="profile-user-info">
           <p className="profile-user-email">
-            {user?.username || "Пользователь"}
+            {getDisplayName(user)}
           </p>
           <Button variant="basic-secondary" size="big-text" fullWidth>
             Изменить пароль

@@ -76,6 +76,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: TokenAction,
     },
+    /// Генерация секретных ключей для сервера
+    GenerateSecrets {
+        /// Формат вывода (env, shell)
+        #[arg(short, long, default_value = "env")]
+        format: String,
+    },
 }
 
 #[derive(Subcommand)]
