@@ -18,6 +18,7 @@ struct CreateProjectRequest {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct ProjectResponse {
     pub id: Uuid,
     pub name: String,
@@ -136,6 +137,7 @@ impl ApiClient {
     }
 
     /// Получить проект по ID
+    #[allow(dead_code)]
     pub async fn get_project(&self, id: Uuid) -> Result<ProjectResponse> {
         let url = format!("{}/api/projects/{}", self.base_url, id);
 

@@ -1,5 +1,6 @@
 // Smoke-тесты для проверки всех сценариев работы CFGY API
-// Запуск: cargo test --bin smoke_tests
+// Запуск: cargo test -p cfgy-tests
+#![allow(dead_code, unused_imports)]
 
 use anyhow::{Context, Result};
 use reqwest::Client;

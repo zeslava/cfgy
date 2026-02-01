@@ -12,11 +12,13 @@ const KEY_SIZE: usize = 32;
 /// Длина nonce для AES-GCM (96 бит = 12 байт)
 const NONCE_SIZE: usize = 12;
 
-/// Сервис для шифрования секретов
+/// Сервис для шифрования секретов (локальный режим CLI)
+#[allow(dead_code)]
 pub struct CryptoService {
     cipher: Aes256Gcm,
 }
 
+#[allow(dead_code)]
 impl CryptoService {
     /// Создать сервис шифрования на основе мастер-ключа
     pub fn new(master_key: &[u8]) -> Result<Self> {

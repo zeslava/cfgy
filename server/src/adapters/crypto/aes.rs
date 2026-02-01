@@ -9,6 +9,7 @@ use ring::digest;
 use crate::ports::CryptoService;
 
 /// Размер ключа шифрования (256 бит для AES-256)
+#[allow(dead_code)]
 const KEY_SIZE: usize = 32;
 
 /// Длина nonce для AES-GCM (96 бит = 12 байт)

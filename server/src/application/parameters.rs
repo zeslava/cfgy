@@ -44,6 +44,7 @@ where
     }
 
     /// Установить или обновить параметр
+    #[allow(dead_code)]
     pub async fn set_parameter(
         &self,
         project_id: Uuid,
@@ -83,6 +84,7 @@ where
     }
 
     /// Получить параметр
+    #[allow(dead_code)]
     pub async fn get_parameter(
         &self,
         project_id: Uuid,

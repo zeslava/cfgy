@@ -7,6 +7,7 @@ use crate::ports::{
 };
 
 /// Сервис для работы с проектами
+#[allow(dead_code)]
 pub struct ProjectService<PR, CR, CKR, CS>
 where
     PR: ProjectRepository,

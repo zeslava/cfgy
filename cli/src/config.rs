@@ -37,6 +37,7 @@ impl AppConfig {
     }
 
     /// Проверить, настроен ли доступ к серверу (есть и токен, и URL)
+    #[allow(dead_code)]
     pub fn has_server_access(&self) -> bool {
         self.api_token.is_some() && !self.server_url.is_empty()
     }

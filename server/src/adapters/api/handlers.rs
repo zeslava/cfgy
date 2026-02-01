@@ -179,24 +179,29 @@ struct OidcDiscovery {
     userinfo_endpoint: Option<String>,
 }
 
-/// Получить endpoints ZID: из discovery или захардкоженные пути
+/// Получить endpoints ZID: из discovery или захардкоженные пути.
+/// Требуется абсолютный issuer (http:// или https://). При пустом/относительном issuer возвращаются fallback с базой http://localhost:5555.
 async fn get_zid_endpoints(issuer: &str) -> (String, String, String) {
     let base = issuer.trim_end_matches('/');
+    let base = if base.is_empty() || (!base.starts_with("http://") && !base.starts_with("https://")) {
+        "http://localhost:5555"
+    } else {
+        base
+    };
     let url = format!("{}/.well-known/openid-configuration", base);
     let client = reqwest::Client::new();
-    if let Ok(resp) = client.get(&url).send().await {
-        if resp.status().is_success() {
-            if let Ok(discovery) = resp.json::<OidcDiscovery>().await {
-                let userinfo = discovery
-                    .userinfo_endpoint
-                    .unwrap_or_else(|| format!("{}/oauth/userinfo", base));
-                return (
-                    discovery.authorization_endpoint,
-                    discovery.token_endpoint,
-                    userinfo,
-                );
-            }
-        }
+    if let Ok(resp) = client.get(&url).send().await
+        && resp.status().is_success()
+        && let Ok(discovery) = resp.json::<OidcDiscovery>().await
+    {
+        let userinfo = discovery
+            .userinfo_endpoint
+            .unwrap_or_else(|| format!("{}/oauth/userinfo", base));
+        return (
+            discovery.authorization_endpoint,
+            discovery.token_endpoint,
+            userinfo,
+        );
     }
     (
         format!("{}/oauth/authorize", base),

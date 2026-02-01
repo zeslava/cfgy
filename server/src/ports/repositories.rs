@@ -6,6 +6,7 @@ use super::entities::{AccessToken, ConfigKey, Configuration, Project, User};
 
 /// Внешняя идентичность пользователя (например, ZID)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ExternalIdentity {
     pub provider: String,
     pub subject: String,
@@ -89,6 +90,7 @@ pub trait ConfigurationRepository: Send + Sync {
 
 /// Репозиторий для работы с параметрами
 #[async_trait]
+#[allow(dead_code)]
 pub trait ConfigKeyRepository: Send + Sync {
     /// Создать или обновить параметр
     async fn upsert(
