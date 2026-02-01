@@ -58,8 +58,20 @@
 
 ## Конфигурация
 
-- Файл окружения по умолчанию: `/usr/local/etc/cfgy_server/cfgy_server.conf` (права 0640, root:cfgy_server).
-- В `/etc/rc.conf` можно задать: `cfgy_server_enable`, `cfgy_server_user`, `cfgy_server_group` (по умолчанию `cfgy`), `cfgy_server_env_file`, `cfgy_server_logfile`, `cfgy_server_pidfile`, `cfgy_server_cwd` (по умолчанию `/var/lib/cfgy_server` — оттуда сервер ищет `web/dist`).
+- Файл окружения по умолчанию: `/usr/local/etc/cfgy_server/cfgy_server.conf` (права 0640, root:cfgy).
+- В `/etc/rc.conf` можно задать переменные сервиса. Пример (значения по умолчанию можно не указывать):
+
+```sh
+cfgy_server_enable="YES"
+cfgy_server_user="cfgy"
+cfgy_server_group="cfgy"
+cfgy_server_env_file="/usr/local/etc/cfgy_server/cfgy_server.conf"
+cfgy_server_logfile="/var/log/cfgy_server/cfgy_server.log"
+cfgy_server_pidfile="/var/run/cfgy_server/cfgy_server.pid"
+cfgy_server_cwd="/var/lib/cfgy_server"
+```
+
+  `cfgy_server_cwd` — рабочая директория сервера (по умолчанию `/var/lib/cfgy_server`; оттуда сервер ищет `web/dist`).
 - Устаревший синоним для файла конфига: `cfgy_server_config` (поддерживается как fallback для `cfgy_server_env_file`).
 - Путь к статике Web UI можно задать переменной `CFGY_WEB_ROOT` в конфиге (каталог с `index.html`, например `/var/lib/cfgy_server/web/dist`).
 

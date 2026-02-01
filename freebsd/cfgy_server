@@ -1,26 +1,39 @@
 #!/bin/sh
 #
-# rc.d script для cfgy-server (CFGY API)
-# Управление: service cfgy_server start|stop|restart|status|config|logs
-#
-
 # PROVIDE: cfgy_server
 # REQUIRE: NETWORKING DAEMON
+# BEFORE: LOGIN
 # KEYWORD: nojail
+#
+# CFGY API Server
+# FreeBSD rc.d service script
+#
+# Добавьте в /etc/rc.conf для автозапуска:
+#
+# cfgy_server_enable (bool):	Включить сервис. По умолчанию "NO".
+# cfgy_server_user (str):	Пользователь для запуска. По умолчанию "cfgy".
+# cfgy_server_group (str):	Группа. По умолчанию "cfgy".
+# cfgy_server_env_file (str):	Файл с переменными окружения (см. rc.subr(8)).
+#				По умолчанию "/usr/local/etc/cfgy_server/cfgy_server.conf".
+# cfgy_server_config (str):	Устаревший синоним cfgy_server_env_file.
+# cfgy_server_logfile (str):	Файл логов. По умолчанию "/var/log/cfgy_server/cfgy_server.log".
+# cfgy_server_pidfile (str):	PID-файл. По умолчанию "/var/run/cfgy_server/cfgy_server.pid".
+# cfgy_server_cwd (str):	Рабочая директория (сервер ищет web/dist там).
+#				По умолчанию "/var/lib/cfgy_server".
+#
 
 . /etc/rc.subr
 
 name="cfgy_server"
 rcvar="${name}_enable"
-load_rc_config "$name"
 
-# Устаревший синоним для env_file
-: "${cfgy_server_env_file:=$cfgy_server_config}"
+load_rc_config "$name"
 
 : "${cfgy_server_enable:=NO}"
 : "${cfgy_server_user:=cfgy}"
 : "${cfgy_server_group:=cfgy}"
-: "${cfgy_server_env_file:=/usr/local/etc/cfgy_server/cfgy_server.conf}"
+: "${cfgy_server_config:=/usr/local/etc/cfgy_server/cfgy_server.conf}"
+: "${cfgy_server_env_file:=$cfgy_server_config}"
 : "${cfgy_server_logfile:=/var/log/cfgy_server/cfgy_server.log}"
 : "${cfgy_server_pidfile:=/var/run/cfgy_server/cfgy_server.pid}"
 : "${cfgy_server_cwd:=/var/lib/cfgy_server}"
@@ -28,76 +41,147 @@ load_rc_config "$name"
 command="/usr/local/bin/cfgy-server"
 pidfile="${cfgy_server_pidfile}"
 
-# Старт: приложение не daemonize — обёртка через daemon(8).
-# CWD задаётся в cfgy_server_cwd, чтобы сервер находил статику web/dist (если разложена в $cfgy_server_cwd/web/dist).
-cfgy_server_start_cmd()
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+restart_cmd="${name}_restart"
+
+# Проверка наличия файла с переменными окружения
+check_env_file()
 {
-    if [ ! -f "${cfgy_server_env_file}" ]; then
-        echo "Ошибка: файл окружения ${cfgy_server_env_file} не найден." >&2
-        return 1
-    fi
-    mkdir -p "$(dirname "${cfgy_server_pidfile}")" "$(dirname "${cfgy_server_logfile}")"
-    chown "${cfgy_server_user}:${cfgy_server_group}" "$(dirname "${cfgy_server_pidfile}")" "$(dirname "${cfgy_server_logfile}")"
-    # $$ передаётся внутреннему sh — записывается PID обёртки, не rc.d
-    /usr/sbin/daemon -u "${cfgy_server_user}" sh -c \
-        "cd \"${cfgy_server_cwd}\" && set -a; . \"${cfgy_server_env_file}\"; set +a; echo \$$ > \"${cfgy_server_pidfile}\"; exec \"${command}\" >> \"${cfgy_server_logfile}\" 2>&1"
+	if [ ! -f "$cfgy_server_env_file" ]; then
+		warn "Файл окружения не найден: $cfgy_server_env_file"
+		return 1
+	fi
+	return 0
 }
 
-cfgy_server_stop_cmd()
+# Запуск сервиса (daemon без -p/-o, чтобы не блокировать: приложение не daemonize)
+cfgy_server_start()
 {
-    if [ -f "${cfgy_server_pidfile}" ]; then
-        pid=$(cat "${cfgy_server_pidfile}")
-        kill "${pid}" 2>/dev/null
-        wait=0
-        while kill -0 "${pid}" 2>/dev/null && [ $wait -lt 10 ]; do
-            sleep 1
-            wait=$((wait + 1))
-        done
-        kill -0 "${pid}" 2>/dev/null && kill -9 "${pid}" 2>/dev/null
-        rm -f "${cfgy_server_pidfile}"
-    fi
+	echo "Запуск CFGY API Server..."
+
+	check_env_file || return 1
+
+	# Создание директории для PID файла если не существует
+	if [ ! -d "$(dirname "$pidfile")" ]; then
+		mkdir -p "$(dirname "$pidfile")"
+		chown "$cfgy_server_user:$cfgy_server_group" "$(dirname "$pidfile")"
+	fi
+
+	# Создание директории для логов если не существует
+	if [ ! -d "$(dirname "$cfgy_server_logfile")" ]; then
+		mkdir -p "$(dirname "$cfgy_server_logfile")"
+		chown "$cfgy_server_user:$cfgy_server_group" "$(dirname "$cfgy_server_logfile")"
+	fi
+
+	# Запуск без -p/-o: daemon сразу возвращает управление.
+	# CWD задаётся в cfgy_server_cwd (сервер ищет web/dist там).
+	# Переменные из env_file подгружаем в окружение; echo $$ и exec — один процесс, PID в pidfile.
+	/usr/sbin/daemon -u "$cfgy_server_user" sh -c 'cd "'"$cfgy_server_cwd"'" && set -a && . "'"$cfgy_server_env_file"'"; set +a && echo $$ > "'"$pidfile"'" && exec '"$command"' >> "'"$cfgy_server_logfile"'" 2>&1'
+
+	RETVAL=$?
+	if [ $RETVAL -eq 0 ]; then
+		sleep 1
+		[ -f "$pidfile" ] && echo "cfgy_server запущен (PID: $(cat "$pidfile"))"
+	fi
+	return $RETVAL
 }
 
-# Доп. команды: status, config, logs
-cfgy_server_status_cmd()
+# Остановка сервиса
+cfgy_server_stop()
 {
-    if [ -f "${cfgy_server_pidfile}" ]; then
-        pid=$(cat "${cfgy_server_pidfile}")
-        if kill -0 "${pid}" 2>/dev/null; then
-            echo "cfgy_server запущен (PID ${pid})"
-        else
-            echo "cfgy_server не запущен (устаревший PID ${pid})"
-        fi
-    else
-        echo "cfgy_server не запущен"
-    fi
+	echo "Остановка CFGY API Server..."
+
+	if [ -f "$pidfile" ]; then
+		pid=$(cat "$pidfile")
+		if kill -0 "$pid" 2>/dev/null; then
+			kill "$pid"
+			# Ждём завершения процесса (максимум 10 секунд)
+			for i in 1 2 3 4 5 6 7 8 9 10; do
+				if ! kill -0 "$pid" 2>/dev/null; then
+					rm -f "$pidfile"
+					echo "cfgy_server остановлен"
+					return 0
+				fi
+				sleep 1
+			done
+			# Если процесс не завершился, убиваем жёстко
+			echo "Принудительное завершение cfgy_server (PID: $pid)"
+			kill -9 "$pid"
+			rm -f "$pidfile"
+		else
+			echo "cfgy_server не запущен (устаревший PID-файл)"
+			rm -f "$pidfile"
+		fi
+	else
+		echo "cfgy_server не запущен"
+	fi
+	return 0
 }
 
-cfgy_server_config_cmd()
+# Перезапуск сервиса
+cfgy_server_restart()
 {
-    echo "env_file=${cfgy_server_env_file}"
-    echo "logfile=${cfgy_server_logfile}"
-    echo "pidfile=${cfgy_server_pidfile}"
-    echo "cwd=${cfgy_server_cwd}"
-    echo "user=${cfgy_server_user}"
-    echo "group=${cfgy_server_group}"
-    if [ -f "${cfgy_server_env_file}" ]; then
-        echo "--- переменные из ${cfgy_server_env_file} ---"
-        set -a
-        . "${cfgy_server_env_file}"
-        set +a
-        env | grep -E '^(DATABASE_URL|SERVER_HOST|SERVER_PORT|CFGY_|RUST_LOG)' | sort
-    fi
+	cfgy_server_stop
+	sleep 1
+	cfgy_server_start
 }
 
-cfgy_server_logs_cmd()
+# Проверка статуса
+cfgy_server_status()
 {
-    tail -f "${cfgy_server_logfile}"
+	if [ -f "$pidfile" ]; then
+		pid=$(cat "$pidfile")
+		if kill -0 "$pid" 2>/dev/null; then
+			echo "cfgy_server запущен (PID: $pid)"
+			return 0
+		else
+			echo "cfgy_server не запущен (устаревший PID-файл: $pidfile)"
+			return 1
+		fi
+	else
+		echo "cfgy_server не запущен"
+		return 1
+	fi
+}
+
+# Показать конфигурацию
+cfgy_server_showconfig()
+{
+	echo "Конфигурация cfgy_server:"
+	echo "  env_file: $cfgy_server_env_file"
+	echo "  user: $cfgy_server_user"
+	echo "  group: $cfgy_server_group"
+	echo "  logfile: $cfgy_server_logfile"
+	echo "  pidfile: $pidfile"
+	echo "  cwd: $cfgy_server_cwd"
+	echo ""
+
+	if [ -f "$cfgy_server_env_file" ]; then
+		echo "Переменные из $cfgy_server_env_file:"
+		set -a
+		. "$cfgy_server_env_file"
+		set +a
+		env | grep -E '^(DATABASE_URL|SERVER_HOST|SERVER_PORT|CFGY_|RUST_LOG|ZID_)' | sort | sed 's/^/  /'
+	else
+		echo "  Файл окружения не найден."
+	fi
+}
+
+# Просмотр логов
+cfgy_server_logs()
+{
+	if [ -f "$cfgy_server_logfile" ]; then
+		tail -f "$cfgy_server_logfile"
+	else
+		echo "Файл логов не найден: $cfgy_server_logfile"
+		return 1
+	fi
 }
 
 extra_commands="status config logs"
-status_cmd="cfgy_server_status_cmd"
-config_cmd="cfgy_server_config_cmd"
-logs_cmd="cfgy_server_logs_cmd"
+status_cmd="cfgy_server_status"
+config_cmd="cfgy_server_showconfig"
+logs_cmd="cfgy_server_logs"
 
 run_rc_command "$1"
