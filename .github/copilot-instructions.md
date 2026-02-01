@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-**CFGY** is a configuration & parameter management system with a complete stack: **CLI + Axum REST API + React Web Dashboard**. It's a Doppler-like tool built in Rust with PostgreSQL, managing secrets/parameters across environments with AES-GCM encryption.
+**CFGY** is a configuration & parameter management system with a complete stack: **CLI + Axum REST API + Svelte Web Dashboard**. It's a Doppler-like tool built in Rust with PostgreSQL, managing secrets/parameters across environments with AES-GCM encryption.
 
 **Monorepo Structure** (Cargo workspace):
 
 - `server/` — Backend (Axum framework)
 - `cli/` — Command-line client
-- `web/` — React + TypeScript SPA
+- `web/` — Svelte 5 + SvelteKit SPA
 - `tests/` — Integration smoke tests
 
 ## Architecture: Hexagonal (Ports & Adapters)
@@ -51,7 +51,7 @@ server/src/
 ```bash
 # Core workflows (using Taskfile)
 task run          # PostgreSQL in Docker + server run locally
-task web          # Web dev server (Vite)
+task web          # Web dev server (SvelteKit)
 task up           # Start PostgreSQL in Docker
 task down         # Stop containers
 task migrate      # Apply database migrations
@@ -343,7 +343,7 @@ curl http://zid-host:5555/health
 
 ```
 Web Dashboard → API Client → Axum Routes → Application Services → Repositories → PostgreSQL
-     (React)       (HTTP)      (port/adapters)  (business logic)   (sqlx)       (encryption)
+     (Svelte)      (HTTP)      (port/adapters)  (business logic)   (sqlx)       (encryption)
 CLI Tool ↔ same flow when in server mode, or local .cfgy.yaml when offline
 ```
 
@@ -379,22 +379,22 @@ CLI Tool ↔ same flow when in server mode, or local .cfgy.yaml when offline
 - Set `DATABASE_URL` during `cargo build` for query macros
 - Migrations auto-run on startup in production
 
-**React** (`web/`):
+**Svelte** (`web/`):
 
-- Pure CSS (no framework) — styles in `web/src/styles/` and component files
+- Svelte 5 + SvelteKit, file-based routing in `web/src/routes/`
+- Components in `web/src/lib/components/`, API/auth in `web/src/lib/`
 - TypeScript strict mode
-- Services in `web/src/services/` call API endpoints
+- Build output: `web/build/` (adapter-static)
 
-## Web Integration & React Dashboard
+## Web Integration & Svelte Dashboard
 
-The server serves web assets at `/`. After `npm run build` in `web/`, distributes from `dist/` via `tower_http::fs::ServeDir`.
+The server serves web assets at `/`. After `npm run build` in `web/`, distributes from `web/build/` via `tower_http::fs::ServeDir` and SPA fallback to `index.html`.
 
 **Web conventions**:
 
-- **React + TypeScript**: Strict mode, component-per-file
-- **Styling**: Tailwind CSS v4 with custom design tokens
-- **Design tokens**: Defined in `web/tailwind.config.js` (colors, spacing, fonts)
-- **API calls**: Services in `web/src/services/` handle HTTP requests
+- **Svelte 5 + SvelteKit**: File-based routing, component-per-file
+- **Styling**: Global `web/src/app.css` and component-scoped styles
+- **API calls**: `web/src/lib/api.ts` and `web/src/lib/auth.ts` handle HTTP requests
 - **Design compliance**: Rules in `.cursor/rules/design_system_rules.mdc`
 
 ## Essential Files & Navigation
@@ -414,8 +414,8 @@ The server serves web assets at `/`. After `npm run build` in `web/`, distribute
 | `docker-compose.yml`               | PostgreSQL + server container config                           |
 | `Taskfile.yml`                     | Task runner for common development commands                     |
 | `tests/smoke_tests.rs`             | API integration tests; run with `cargo test --bin smoke_tests`  |
-| `web/src/components/`              | React components (one per file)                                |
-| `web/src/services/`                | API client services                                            |
+| `web/src/lib/components/`         | Svelte components (Button, Input, Modal, etc.)                  |
+| `web/src/lib/api.ts`              | API client; `web/src/lib/auth.ts` for auth                     |
 
 ## Debugging Tips
 

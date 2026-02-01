@@ -1,8 +1,8 @@
 #!/bin/sh
 #
 # Скрипт установки cfgy-server как сервиса на FreeBSD
-# Использование: sudo ./install.sh [путь_к_бинарнику] [путь_к_web/dist]
-# По умолчанию: ./cfgy-server; статика — из репо web/dist, если есть
+# Использование: sudo ./install.sh [путь_к_бинарнику] [путь_к_web/build]
+# По умолчанию: ./cfgy-server; статика — из репо web/build, если есть
 #
 
 set -e
@@ -32,7 +32,7 @@ BIN_NAME="cfgy-server"
 BIN_PATH="${1:-./${BIN_NAME}}"
 WEB_DIST_SOURCE="${2:-}"
 if [ -z "${WEB_DIST_SOURCE}" ]; then
-    DEFAULT_WEB_DIST="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/web/dist"
+    DEFAULT_WEB_DIST="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/web/build"
     [ -f "${DEFAULT_WEB_DIST}/index.html" ] && WEB_DIST_SOURCE="${DEFAULT_WEB_DIST}"
 fi
 
@@ -107,12 +107,12 @@ if [ -n "${WEB_DIST_SOURCE}" ]; then
         echo "Соберите фронтенд: cd web && npm run build"
         exit 1
     fi
-    mkdir -p "${CFGY_HOME}/web/dist"
-    cp -R "${WEB_DIST_SOURCE}"/* "${CFGY_HOME}/web/dist/"
+    mkdir -p "${CFGY_HOME}/web/build"
+    cp -R "${WEB_DIST_SOURCE}"/* "${CFGY_HOME}/web/build/"
     chown -R "$CFGY_USER:$CFGY_GROUP" "${CFGY_HOME}/web"
-    echo "${GREEN}✓ Статика установлена в ${CFGY_HOME}/web/dist${NC}"
+    echo "${GREEN}✓ Статика установлена в ${CFGY_HOME}/web/build${NC}"
 else
-    echo "🌐 Статика Web UI не указана (можно добавить позже в ${CFGY_HOME}/web/dist)"
+    echo "🌐 Статика Web UI не указана (можно добавить позже в ${CFGY_HOME}/web/build)"
 fi
 echo ""
 
@@ -187,6 +187,6 @@ echo "   ${YELLOW}service cfgy_server config${NC}"
 echo ""
 if [ -z "${WEB_DIST_SOURCE}" ]; then
     echo "7. Статика Web UI не установлена. Чтобы добавить:"
-    echo "   ${YELLOW}sudo ./install.sh /usr/local/bin/cfgy-server /path/to/web/dist${NC}"
+    echo "   ${YELLOW}sudo ./install.sh /usr/local/bin/cfgy-server /path/to/web/build${NC}"
     echo ""
 fi

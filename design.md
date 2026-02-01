@@ -53,7 +53,7 @@ cfgy/
 │       ├── main.rs         # Точка входа CLI
 │       ├── commands/       # Команды (login, config, secrets, run)
 │       └── client/         # HTTP клиент для API
-└── web/                    # SPA фронтенд
+└── web/                    # SPA фронтенд (Svelte 5 + SvelteKit)
     ├── package.json        # (если используется npm/yarn)
     ├── src/                # Исходники фронтенда
     └── dist/               # Собранное приложение
@@ -68,7 +68,7 @@ cfgy/
 **Компоненты:**
 *   `server/` — основной backend сервер с REST API, организован по принципу Hexagonal Architecture (Ports & Adapters). Запускается как отдельный процесс.
 *   `cli/` — командная утилита.
-*   `web/` — фронтенд приложение, при сборке сервер может отдавать статические файлы из `web/dist/`.
+*   `web/` — фронтенд приложение (Svelte 5 + SvelteKit), при сборке сервер отдаёт статику из `web/build/`.
 *   `migrations/` — SQL миграции (могут быть внутри `server/` или в корне, в зависимости от инструмента: `sqlx-cli`).
 
 **Архитектура сервера (Hexagonal Architecture):**

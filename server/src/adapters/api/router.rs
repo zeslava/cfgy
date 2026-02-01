@@ -15,8 +15,8 @@ use crate::adapters::api::handlers::AppState;
 
 /// Получить путь к index.html, проверяя несколько возможных расположений
 /// Все проверки выполняются во время выполнения, чтобы работать независимо от места запуска.
-/// Для FreeBSD/системного сервиса задайте CFGY_WEB_ROOT (каталог с index.html, например /var/lib/cfgy_server/web/dist).
-fn get_index_path() -> std::path::PathBuf {
+/// Для FreeBSD/системного сервиса задайте CFGY_WEB_ROOT (каталог с index.html, например /var/lib/cfgy_server/web/build).
+pub fn get_index_path() -> std::path::PathBuf {
     // 0. Явный путь из переменной окружения (для системного сервиса, например FreeBSD)
     if let Ok(root) = std::env::var("CFGY_WEB_ROOT") {
         let path = std::path::Path::new(&root).join("index.html");
@@ -25,14 +25,14 @@ fn get_index_path() -> std::path::PathBuf {
         }
     }
 
-    // 1. В Docker контейнере файлы всегда в /app/web/dist
-    let docker_path = std::path::Path::new("/app/web/dist/index.html");
+    // 1. В Docker контейнере файлы всегда в /app/web/build
+    let docker_path = std::path::Path::new("/app/web/build/index.html");
     if docker_path.exists() {
         return docker_path.to_path_buf();
     }
 
     // 2. Относительно текущей рабочей директории (если запускаем из корня проекта)
-    let path_from_cwd = std::path::Path::new("web/dist/index.html");
+    let path_from_cwd = std::path::Path::new("web/build/index.html");
     if path_from_cwd.exists() {
         return path_from_cwd.to_path_buf();
     }
@@ -45,7 +45,7 @@ fn get_index_path() -> std::path::PathBuf {
             let path_from_exe = exe_dir
                 .parent() // target/
                 .and_then(|p| p.parent()) // корень проекта
-                .map(|p| p.join("web/dist/index.html"));
+                .map(|p| p.join("web/build/index.html"));
 
             if let Some(ref path) = path_from_exe {
                 if path.exists() {
@@ -57,12 +57,12 @@ fn get_index_path() -> std::path::PathBuf {
             // Проверяем, содержит ли путь "server"
             let mut current = exe_dir;
             while let Some(parent) = current.parent() {
-                if parent.join("web/dist/index.html").exists() {
-                    return parent.join("web/dist/index.html");
+                if parent.join("web/build/index.html").exists() {
+                    return parent.join("web/build/index.html");
                 }
                 if parent.join("server").exists() && parent.join("web").exists() {
                     // Это корень проекта
-                    return parent.join("web/dist/index.html");
+                    return parent.join("web/build/index.html");
                 }
                 current = parent;
                 // Ограничим глубину поиска
@@ -79,9 +79,9 @@ fn get_index_path() -> std::path::PathBuf {
         .map(|cwd| {
             // Если мы в server/, поднимаемся на уровень выше
             if cwd.ends_with("server") {
-                cwd.parent().map(|p| p.join("web/dist/index.html"))
+                cwd.parent().map(|p| p.join("web/build/index.html"))
             } else {
-                Some(cwd.join("web/dist/index.html"))
+                Some(cwd.join("web/build/index.html"))
             }
         })
         .flatten();
@@ -95,7 +95,7 @@ fn get_index_path() -> std::path::PathBuf {
     // Fallback: возвращаем путь относительно текущей директории (даже если не существует)
     std::env::current_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        .join("web/dist/index.html")
+        .join("web/build/index.html")
 }
 
 /// Handler для SPA fallback - возвращает index.html для всех не-API роутов
@@ -133,7 +133,7 @@ async fn serve_index() -> Response<Body> {
 pub fn create_router(state: AppState) -> Router {
     use crate::adapters::api::handlers;
 
-    // Статические файлы из web/dist (относительно корня проекта)
+    // Статические файлы из web/build (относительно корня проекта)
     // Используем ту же логику поиска, что и для index.html
     let static_dir = get_index_path().parent().unwrap().to_path_buf();
 
@@ -242,9 +242,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tokens", get(handlers::list_tokens))
         .route("/api/tokens", post(handlers::create_token))
         .route("/api/tokens/:id", delete(handlers::delete_token))
-        // Раздача статических файлов из web/dist/assets
-        .nest_service("/assets", ServeDir::new(static_dir.join("assets")))
-        // Раздача других статических файлов (favicon и т.д.)
+        // SvelteKit: JS/CSS в _app/
+        .nest_service("/_app", ServeDir::new(static_dir.join("_app")))
+        .route("/favicon.svg", get(handlers::serve_favicon))
+        // Раздача других статических файлов (logo и т.д.)
         .nest_service("/logo.svg", ServeDir::new(static_dir.clone()))
         // SPA fallback: все остальные запросы возвращают index.html
         .fallback(serve_index)

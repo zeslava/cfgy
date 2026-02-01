@@ -10,7 +10,7 @@ Configuration & Parameter Management с полноценным стеком: **C
 - **CLI**: работа в контексте проекта по `.cfgy.yaml` (project + текущая `configuration`) + работа с сервером
 - **Backend**: REST API (Axum) + PostgreSQL + миграции
 - **Шифрование параметров**: AES-GCM (на сервере используется master key)
-- **Web Dashboard** (React + TypeScript): регистрация/логин (JWT), проекты / configurations / параметры (CRUD), API токены
+- **Web Dashboard** (Svelte 5 + SvelteKit): регистрация/логин (JWT), проекты / configurations / параметры (CRUD), API токены
 
 **Этапы 4–6: ⏳ в планах**
 - RBAC/команды/коллаборация, аудит
@@ -25,14 +25,14 @@ Configuration & Parameter Management с полноценным стеком: **C
 
 - `server/` — backend сервер (Axum)
 - `cli/` — CLI клиент
-- `web/` — SPA фронтенд (React + TypeScript, Vite)
+- `web/` — SPA фронтенд (Svelte 5 + SvelteKit)
 - `tests/` — интеграционные smoke-тесты API
 
 ## Требования
 
 ### Для запуска через Docker (рекомендуется)
 - Docker + Docker Compose (v1 `docker-compose` или v2 `docker compose`)
-- Node.js + npm (нужно для сборки `web/`)
+- Node.js + npm (нужно для сборки `web/`, артефакты в `web/build`)
 - Rust toolchain (если собираешь/разрабатываешь Rust-компоненты локально)
 - Task (Taskfile runner): `go install github.com/go-task/task/v3/cmd/task@latest` или через пакетный менеджер
 
@@ -207,7 +207,7 @@ task
 
 Основные команды:
 - `task run` — локальная разработка (PostgreSQL в Docker + сервер локально)
-- `task web` — запустить веб dev сервер (Vite)
+- `task web` — запустить веб (Svelte) dev сервер
 - `task up` — запустить PostgreSQL в Docker
 - `task down` — остановить контейнеры
 - `task migrate` — применить миграции
@@ -231,7 +231,7 @@ task
 - API токены: создание/просмотр/удаление
 
 ### Dev-режим web
-В репозитории есть `task web`, который запускает web dev server (Vite) и предполагает, что API уже запущен (через `task run` в другом терминале).
+В репозитории есть `task web`, который запускает web dev server (SvelteKit/Vite) и предполагает, что API уже запущен (через `task run` в другом терминале).
 
 Важно: эта команда интерактивная, поэтому используй её вручную, когда нужно.
 

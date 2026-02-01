@@ -62,8 +62,8 @@ COPY --from=builder /app/target/release/cfgy-server /app/cfgy-server
 # Копирование миграций
 COPY --from=builder /app/server/migrations ./migrations
 
-# Копирование собранного веб-приложения (из стадии web-builder)
-COPY --from=web-builder /app/web/dist ./web/dist
+# Копирование собранного веб-приложения (SvelteKit → web/build)
+COPY --from=web-builder /app/web/build ./web/build
 
 # Порт сервера
 EXPOSE 8080

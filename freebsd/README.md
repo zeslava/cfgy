@@ -1,12 +1,12 @@
 # Установка cfgy-server как сервиса на FreeBSD
 
-Файлы для настройки системного сервиса **cfgy_server** на FreeBSD: rc.d-скрипт, установщик, шаблон конфига и ротация логов. Сервис запускается одним бинарником и при необходимости раздаёт статику Web UI из `/var/lib/cfgy_server/web/dist`.
+Файлы для настройки системного сервиса **cfgy_server** на FreeBSD: rc.d-скрипт, установщик, шаблон конфига и ротация логов. Сервис запускается одним бинарником и при необходимости раздаёт статику Web UI из `/var/lib/cfgy_server/web/build`.
 
 ## Требования
 
 - FreeBSD с установленными базовыми утилитами
 - Собранный бинарник `cfgy-server` (например, `cargo build --release -p cfgy-server` → `target/release/cfgy-server`)
-- Для Web UI: собранная статика `web/dist` (в каталоге `web/`: `npm ci && npm run build`)
+- Для Web UI: собранная статика `web/build` (в каталоге `web/`: `npm ci && npm run build`)
 
 ## Быстрая установка
 
@@ -18,13 +18,13 @@
    cd freebsd
    ```
 
-2. Запустите установку от root. Статика Web UI копируется автоматически из `web/dist` репозитория (если есть). Второй аргумент — путь к `web/dist` (если запускаете не из каталога freebsd/ репо):
+2. Запустите установку от root. Статика Web UI копируется автоматически из `web/build` репозитория (если есть). Второй аргумент — путь к `web/build` (если запускаете не из каталога freebsd/ репо):
    ```sh
    sudo ./install.sh ../target/release/cfgy-server
    ```
    С явным путём к статике:
    ```sh
-   sudo ./install.sh ../target/release/cfgy-server /path/to/web/dist
+   sudo ./install.sh ../target/release/cfgy-server /path/to/web/build
    ```
 
 3. Отредактируйте конфиг и включите сервис:
@@ -71,9 +71,9 @@ cfgy_server_pidfile="/var/run/cfgy_server/cfgy_server.pid"
 cfgy_server_cwd="/var/lib/cfgy_server"
 ```
 
-  `cfgy_server_cwd` — рабочая директория сервера (по умолчанию `/var/lib/cfgy_server`; оттуда сервер ищет `web/dist`).
+  `cfgy_server_cwd` — рабочая директория сервера (по умолчанию `/var/lib/cfgy_server`; оттуда сервер ищет `web/build`).
 - Устаревший синоним для файла конфига: `cfgy_server_config` (поддерживается как fallback для `cfgy_server_env_file`).
-- Путь к статике Web UI можно задать переменной `CFGY_WEB_ROOT` в конфиге (каталог с `index.html`, например `/var/lib/cfgy_server/web/dist`).
+- Путь к статике Web UI можно задать переменной `CFGY_WEB_ROOT` в конфиге (каталог с `index.html`, например `/var/lib/cfgy_server/web/build`).
 
 **Структура каталога конфигурации** (`/usr/local/etc/cfgy_server/`) после установки:
 

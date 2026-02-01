@@ -1,8 +1,11 @@
 use std::error::Error;
+use std::path::PathBuf;
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
-    response::{IntoResponse, Json, Redirect},
+    response::{IntoResponse, Redirect, Response},
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -45,11 +48,29 @@ pub struct AppState {
     pub user_repo: Arc<dyn UserRepository>,
     pub external_identity_repo: Arc<dyn ExternalIdentityRepository>,
     pub db_pool: PgPool,
+    /// Корень каталога со статикой (web/build) для раздачи favicon и т.д.
+    pub web_root: PathBuf,
 }
 
 const CFGY_SESSION_COOKIE_NAME: &str = "cfgy_session";
 const ZID_STATE_COOKIE_NAME: &str = "cfgy_zid_state";
 const ZID_NEXT_COOKIE_NAME: &str = "cfgy_zid_next";
+
+/// Раздача фавикона из web_root (для SPA при обращении через Rust-сервер)
+pub async fn serve_favicon(State(state): State<AppState>) -> Response {
+    let path = state.web_root.join("favicon.svg");
+    match tokio::fs::read(&path).await {
+        Ok(body) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "image/svg+xml")
+            .body(Body::from(body))
+            .unwrap(),
+        Err(_) => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::empty())
+            .unwrap(),
+    }
+}
 
 // ========== Типы для запросов и ответов ==========
 

@@ -7,12 +7,12 @@
 ### Компоненты
 - `server/` — Backend сервер (Axum framework, Rust)
 - `cli/` — CLI клиент (Rust)
-- `web/` — SPA фронтенд (React + TypeScript, Vite)
+- `web/` — SPA фронтенд (Svelte 5 + SvelteKit)
 - `tests/` — Интеграционные smoke-тесты API
 
 ### Технологический стек
 - **Backend:** Rust (edition 2024), Axum, PostgreSQL, sqlx
-- **Frontend:** React 19.1.1, TypeScript 5.9.3, Tailwind CSS v4, Vite
+- **Frontend:** Svelte 5, SvelteKit, TypeScript, Vite (под капотом SvelteKit)
 - **База данных:** PostgreSQL
 - **Шифрование:** AES-GCM для секретов, Argon2 для паролей
 
@@ -286,69 +286,32 @@ pub async fn create_project(
 - Понятные сообщения об ошибках на русском языке
 - Валидация наличия проекта/configuration перед операциями
 
-## Правила работы с фронтендом (React + TypeScript)
+## Правила работы с фронтендом (Svelte 5 + SvelteKit)
 
-### Структура компонентов
+### Структура
 
-- **UI компоненты:** `web/src/components/ui/` (переиспользуемые)
-- **Domain компоненты:** `web/src/components/domain/` (специфичные для домена)
-- **Pages:** `web/src/pages/` (одна страница = один файл)
-- **Services:** `web/src/services/api.ts` (API клиент)
+- **Маршруты и страницы:** `web/src/routes/` (файловая маршрутизация SvelteKit: `+page.svelte`, `+layout.svelte`)
+- **Компоненты:** `web/src/lib/components/` (переиспользуемые: Button, Input, Modal, Header и т.д.)
+- **Логика и API:** `web/src/lib/api.ts`, `web/src/lib/auth.ts`, `web/src/lib/toast.ts`
+- **Статика:** `web/static/` (favicon, logo, robots.txt) — копируется в корень сборки
+- **Сборка:** `npm run build` → артефакты в `web/build/` (adapter-static)
 
 ### Стилизация
 
-- **Tailwind CSS v4** - все стили через utility классы
-- **Design tokens:** определены в `web/tailwind.config.js`
-- **Цвета:** использовать семантические имена (`text-text-dark`, `bg-basic-accent`)
-- **Нет CSS Modules** или Styled Components
-- **Глобальные стили:** только в `web/src/index.css`
+- Стили в компонентах или в `web/src/app.css` (глобальные)
+- Использовать семантические имена для цветов и отступов
 
 ### TypeScript
 
 - Строгий режим (strict mode)
-- Интерфейсы для всех props компонентов
-- Типы экспортируются из компонентов
-- Использовать `React.FC<Props>` для функциональных компонентов
+- Типы для props и API-ответов
+- Типы экспортируются из модулей при необходимости
 
-### Паттерны компонентов
+### Паттерны компонентов (Svelte)
 
-- Принимать `className` и spread `...rest` props
-- Использовать `clsx` для условных классов
-- Icons как React компоненты в `Icons.tsx`
-- Context API для глобального состояния (`AuthContext`, `ToastContext`)
-
-Пример:
-```tsx
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  icon?: React.ReactNode;
-}
-
-export const Button: React.FC<ButtonProps> = ({
-  variant = "primary",
-  size = "big-text",
-  icon,
-  children,
-  className,
-  ...rest
-}) => {
-  return (
-    <button
-      className={clsx(
-        "inline-flex items-center justify-center gap-[10px]",
-        getVariantClasses(variant),
-        getSizeClasses(size),
-        className
-      )}
-      {...rest}
-    >
-      {icon && <span>{icon}</span>}
-      {children}
-    </button>
-  );
-};
-```
+- Props через `export let propName` или типизированные через интерфейсы
+- События через `dispatch` или callback-props
+- Глобальное состояние: stores (`auth`, toast) в `web/src/lib/`
 
 ### Обработка ошибок API
 
@@ -367,8 +330,8 @@ export const Button: React.FC<ButtonProps> = ({
 ### Node.js (npm)
 
 - Зависимости в `web/package.json`
-- React 19.1.1, TypeScript 5.9.3
-- Vite для сборки
+- Svelte 5, SvelteKit, TypeScript
+- Vite для сборки (через SvelteKit)
 
 ## Правила безопасности
 
