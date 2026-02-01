@@ -12,12 +12,11 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-config.workspace = true
 
-# Web framework
+# Web framework (без "trace" — меньше кода в бинарнике)
 axum = { version = "0.7", features = ["macros"] }
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace", "fs", "set-header"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "set-header"] }
 
 # Database
 sqlx = { version = "0.8", features = [
@@ -46,7 +45,7 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 # Async traits
 async-trait = "0.1"
 
-# ZID OAuth 2.0 integration
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+# ZID OAuth 2.0 integration (default-features = false — меньше зависимостей)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 urlencoding = "2.1"
 base64 = "0.22"

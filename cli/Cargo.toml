@@ -9,13 +9,12 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
-config.workspace = true
 
 # CLI
 clap = { version = "4.5", features = ["derive"] }
 
-# HTTP client
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+# HTTP client (default-features = false — меньше зависимостей)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 urlencoding = "2.1"
 
 # Crypto (for local encryption)
@@ -27,9 +26,6 @@ base64 = "0.22"
 
 # File formats
 serde_yaml = "0.9"
-
-# Directories
-dirs = "5.0"
 
 # UUID
 uuid = { version = "1.10", features = ["v4", "serde"] }

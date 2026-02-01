@@ -7,8 +7,8 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-# Async runtime
-tokio = { version = "1.40", features = ["full"] }
+# Async runtime (минимальный набор вместо "full" — быстрее сборка, меньше бинарь)
+tokio = { version = "1.40", features = ["rt-multi-thread", "net", "sync", "time", "signal", "fs", "io-util", "macros"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -21,6 +21,3 @@ thiserror = "1.0"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-
-# Configuration
-config = "0.14"

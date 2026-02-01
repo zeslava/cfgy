@@ -69,12 +69,13 @@ impl CryptoService {
         }
     }
 
-    /// Путь к файлу мастер-ключа
+    /// Путь к файлу мастер-ключа (HOME на Unix, USERPROFILE на Windows)
     fn master_key_path() -> std::path::PathBuf {
-        dirs::home_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join(".cfgy")
-            .join("master.key")
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        home.join(".cfgy").join("master.key")
     }
 
     /// Сгенерировать новый мастер-ключ
