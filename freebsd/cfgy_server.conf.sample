@@ -20,4 +20,11 @@ CFGY_JWT_SECRET=your-jwt-secret-minimum-16-chars
 # Логирование
 RUST_LOG=info
 
-# Опционально: CORS, HTTPS, ZID OAuth — см. .env.example в репозитории
+# ZID OAuth 2.0 (вход через ZID в веб-интерфейсе). Опционально.
+# Базовый URL ZID (issuer). Альтернатива: ZID_BASE_URL
+# ZID_ISSUER=https://zid.example.com
+# client_id и client_secret из настроек приложения в ZID
+# ZID_CLIENT_ID=
+# ZID_CLIENT_SECRET=
+# Callback URL. Должен побайтово совпадать с redirect_uris в ZID. Альтернатива: ZID_CALLBACK_URL
+# ZID_REDIRECT_URI=https://your-server.example.com/oauth/zid/callback
