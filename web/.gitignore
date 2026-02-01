@@ -8,7 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist — не игнорируем: собранная статика коммитится для развёртывания одним бинарником (сервер + статика)
 dist-ssr
 *.local
 
