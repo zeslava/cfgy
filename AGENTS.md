@@ -411,7 +411,7 @@ export const Button: React.FC<ButtonProps> = ({
 
 - Конфигурация через переменные окружения
 - Структура: `DATABASE_URL`, `SERVER_HOST`, `CFGY_MASTER_KEY` (без двойного подчеркивания)
-- ZID OAuth 2.0: `ZID_ISSUER` (или `ZID_BASE_URL`), `ZID_CLIENT_ID`, `ZID_CLIENT_SECRET`, `ZID_REDIRECT_URI` (или `ZID_CALLBACK_URL`) — для входа через ZID по Authorization Code flow
+- ZID OAuth 2.0: `ZID_ISSUER`, `ZID_BASE_URL` (опционально), `ZID_CLIENT_ID`, `ZID_CLIENT_SECRET`, `ZID_REDIRECT_URI` — для входа через ZID по Authorization Code flow
 - Значения по умолчанию в `config::Config::default()`
 - Загрузка через `config::Config::load()` (читает переменные напрямую через `std::env::var()`)
 

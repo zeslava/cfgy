@@ -75,6 +75,14 @@ cfgy_server_cwd="/var/lib/cfgy_server"
 - Устаревший синоним для файла конфига: `cfgy_server_config` (поддерживается как fallback для `cfgy_server_env_file`).
 - Путь к статике Web UI можно задать переменной `CFGY_WEB_ROOT` в конфиге (каталог с `index.html`, например `/var/lib/cfgy_server/web/dist`).
 
+**Структура каталога конфигурации** (`/usr/local/etc/cfgy_server/`) после установки:
+
+```
+-rw-r-----  1 root  cfgy  ...  cfgy_server.conf
+```
+
+Каталог: `root:cfgy`, режим 750. Файл конфига: `root:cfgy`, 0640 — сервис (пользователь `cfgy`) читает переменные окружения оттуда.
+
 ## Ротация логов
 
 Добавьте строку из `newsyslog.conf.sample` в `/etc/newsyslog.conf` или создайте файл в `/etc/newsyslog.d/` (если система поддерживает include).

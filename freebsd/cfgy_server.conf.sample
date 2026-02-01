@@ -26,5 +26,5 @@ RUST_LOG=info
 # client_id и client_secret из настроек приложения в ZID
 # ZID_CLIENT_ID=
 # ZID_CLIENT_SECRET=
-# Callback URL. Должен побайтово совпадать с redirect_uris в ZID. Альтернатива: ZID_CALLBACK_URL
+# Callback URL. Должен побайтово совпадать с redirect_uris в ZID.
 # ZID_REDIRECT_URI=https://your-server.example.com/oauth/zid/callback

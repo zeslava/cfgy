@@ -1,3 +1,4 @@
+use std::error::Error;
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
@@ -13,7 +14,7 @@ use crate::adapters::api::auth::extract_user;
 use crate::application::{
     auth::AuthService, parameters::ParameterService, projects::ProjectService,
 };
-use crate::config::Config;
+use crate::config::{Config, ZidConfig};
 use crate::ports::{ExternalIdentityRepository, UserRepository};
 
 /// Контекст приложения (все сервисы и репозитории)
@@ -179,9 +180,51 @@ struct OidcDiscovery {
     userinfo_endpoint: Option<String>,
 }
 
+/// Извлечь из PEM-данных все блоки сертификатов (один или несколько) и добавить их в builder.
+fn add_ca_certs_from_pem(
+    builder: reqwest::ClientBuilder,
+    pem_bytes: &[u8],
+) -> Result<reqwest::ClientBuilder, String> {
+    const BEGIN: &[u8] = b"-----BEGIN CERTIFICATE-----";
+    const END: &[u8] = b"-----END CERTIFICATE-----";
+    let mut builder = builder;
+    let mut pos = 0;
+    while let Some(start) = pem_bytes[pos..].windows(BEGIN.len()).position(|w| w == BEGIN) {
+        let start = pos + start;
+        let after_begin = start + BEGIN.len();
+        let end_pos = pem_bytes[after_begin..]
+            .windows(END.len())
+            .position(|w| w == END)
+            .map(|i| after_begin + i + END.len())
+            .ok_or_else(|| "PEM: не найден -----END CERTIFICATE-----".to_string())?;
+        let block = &pem_bytes[start..end_pos];
+        let cert = reqwest::Certificate::from_pem(block)
+            .map_err(|e| format!("PEM сертификат: {}", e))?;
+        builder = builder.add_root_certificate(cert);
+        pos = end_pos;
+    }
+    Ok(builder)
+}
+
+/// Собрать HTTP-клиент для запросов к ZID (опционально: доверенный CA из файла и/или отключение проверки TLS).
+fn build_zid_http_client(zid: &ZidConfig) -> reqwest::Client {
+    let mut builder = reqwest::Client::builder();
+    if let Some(ref path) = zid.ca_file {
+        if let Ok(pem) = std::fs::read(path) {
+            if let Ok(b) = add_ca_certs_from_pem(reqwest::Client::builder(), &pem) {
+                builder = b;
+            }
+        }
+    }
+    if zid.tls_insecure {
+        builder = builder.danger_accept_invalid_certs(true);
+    }
+    builder.build().expect("reqwest Client для ZID")
+}
+
 /// Получить endpoints ZID: из discovery или захардкоженные пути.
 /// Требуется абсолютный issuer (http:// или https://). При пустом/относительном issuer возвращаются fallback с базой http://localhost:5555.
-async fn get_zid_endpoints(issuer: &str) -> (String, String, String) {
+async fn get_zid_endpoints(issuer: &str, client: &reqwest::Client) -> (String, String, String) {
     let base = issuer.trim_end_matches('/');
     let base = if base.is_empty() || (!base.starts_with("http://") && !base.starts_with("https://")) {
         "http://localhost:5555"
@@ -189,7 +232,6 @@ async fn get_zid_endpoints(issuer: &str) -> (String, String, String) {
         base
     };
     let url = format!("{}/.well-known/openid-configuration", base);
-    let client = reqwest::Client::new();
     if let Ok(resp) = client.get(&url).send().await
         && resp.status().is_success()
         && let Ok(discovery) = resp.json::<OidcDiscovery>().await
@@ -298,7 +340,14 @@ pub async fn zid_login(Query(q): Query<ZidLoginQuery>) -> impl IntoResponse {
     let state = Uuid::new_v4().to_string();
     let next = q.next.unwrap_or_else(|| "/projects".to_string());
 
-    let (authorization_endpoint, _, _) = get_zid_endpoints(&config.zid.issuer).await;
+    // Редирект в браузере — всегда по публичному issuer (доступен с клиента пользователя)
+    let issuer_base = config.zid.issuer.trim_end_matches('/');
+    let issuer_base = if issuer_base.is_empty() || (!issuer_base.starts_with("http://") && !issuer_base.starts_with("https://")) {
+        "http://localhost:5555"
+    } else {
+        issuer_base
+    };
+    let authorization_endpoint = format!("{}/oauth/authorize", issuer_base);
     let redirect_uri_encoded = urlencoding::encode(&config.zid.redirect_uri);
     let zid_login_url = format!(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope=openid%20profile%20email&state={}",
@@ -385,11 +434,16 @@ pub async fn zid_callback(
     let secure = config.zid.redirect_uri.starts_with("https://");
 
     if let Some(ref err) = q.error {
-        let msg = q
+        let mut msg = q
             .error_description
             .as_deref()
-            .unwrap_or(err);
-        return zid_callback_error_redirect(msg, secure).into_response();
+            .unwrap_or(err)
+            .to_string();
+        // Подсказка при типичной ошибке: redirect_uri не совпадает с настройками в ZID
+        if err == "invalid_request" && q.error_description.as_deref().map_or(true, |d| !d.contains("redirect_uri")) {
+            msg.push_str(" (проверьте: ZID_REDIRECT_URI на сервере CFGY и список redirect_uri в настройках клиента ZID должны совпадать побайтово)");
+        }
+        return zid_callback_error_redirect(&msg, secure).into_response();
     }
 
     let code = match &q.code {
@@ -427,8 +481,15 @@ pub async fn zid_callback(
         .map(|c| c.into_owned())
         .unwrap_or_else(|| "/projects".to_string());
 
+    // Запросы бэкенда к ZID (token, userinfo) — по base_url, если задан; иначе по issuer
+    let backend_base = config
+        .zid
+        .base_url
+        .as_deref()
+        .unwrap_or(config.zid.issuer.as_str());
+    let client = build_zid_http_client(&config.zid);
     let (_, token_endpoint, userinfo_endpoint) =
-        get_zid_endpoints(&config.zid.issuer).await;
+        get_zid_endpoints(backend_base, &client).await;
 
     let token_body = format!(
         "grant_type=authorization_code&client_id={}&client_secret={}&redirect_uri={}&code={}",
@@ -438,7 +499,6 @@ pub async fn zid_callback(
         urlencoding::encode(&code)
     );
 
-    let client = reqwest::Client::new();
     let token_resp = match client
         .post(&token_endpoint)
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -448,11 +508,11 @@ pub async fn zid_callback(
     {
         Ok(r) => r,
         Err(e) => {
-            return zid_callback_error_redirect(
-                &format!("Ошибка запроса токена к ZID: {}", e),
-                secure,
-            )
-                .into_response();
+            let mut msg = format!("Ошибка запроса токена к ZID: {}", e);
+            if let Some(source) = e.source() {
+                msg.push_str(&format!(" (причина: {})", source));
+            }
+            return zid_callback_error_redirect(&msg, secure).into_response();
         }
     };
 

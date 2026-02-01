@@ -29,8 +29,15 @@ pub struct ServerConfig {
 /// Конфигурация интеграции с ZID (OAuth 2.0 / OIDC для Web UI)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZidConfig {
-    /// Базовый URL ZID (issuer), например: https://zid.example.com или http://localhost:5555
+    /// Публичный URL ZID (issuer) — используется для редиректов в браузере (страница входа ZID).
+    /// Должен быть доступен с клиента пользователя.
     pub issuer: String,
+
+    /// URL ZID для запросов с бэкенда (discovery, обмен code на токен, userinfo).
+    /// Если задан ZID_BASE_URL — бэкенд ходит по нему; иначе используется issuer.
+    /// Удобно, когда с сервера ZID доступен по внутреннему адресу (например Tailscale).
+    #[serde(default)]
+    pub base_url: Option<String>,
 
     /// client_id, выданный для этого приложения в ZID (oidc_clients и т.п.)
     pub client_id: String,
@@ -41,6 +48,17 @@ pub struct ZidConfig {
     /// Полный callback URL (redirect_uri). Должен побайтово совпадать с redirect_uris в ZID.
     /// Например: https://our-app.com/auth/zid/callback или http://localhost:5173/auth/zid/callback
     pub redirect_uri: String,
+
+    /// Не проверять TLS-сертификат при запросах к ZID (1/true/yes).
+    /// Только для внутренних/домашних установок (Tailscale, self-signed). В production не использовать.
+    #[serde(default)]
+    pub tls_insecure: bool,
+
+    /// Путь к PEM-файлу с доверенным CA (корневой или промежуточный сертификат).
+    /// Для ZID с сертификатом от Tailscale: положите корневой CA Tailscale в файл и укажите путь (например /etc/ssl/tailscale-ca.pem).
+    /// Предпочтительнее ZID_TLS_INSECURE, т.к. проверка TLS остаётся включённой.
+    #[serde(default)]
+    pub ca_file: Option<String>,
 }
 
 /// Конфигурация криптографии
@@ -78,13 +96,14 @@ impl Config {
             },
             zid: ZidConfig {
                 issuer: std::env::var("ZID_ISSUER")
-                    .or_else(|_| std::env::var("ZID_BASE_URL"))
                     .unwrap_or_else(|_| "http://localhost:5555".to_string()),
+                base_url: std::env::var("ZID_BASE_URL").ok().filter(|s| !s.is_empty()),
                 client_id: std::env::var("ZID_CLIENT_ID").unwrap_or_default(),
                 client_secret: std::env::var("ZID_CLIENT_SECRET").unwrap_or_default(),
                 redirect_uri: std::env::var("ZID_REDIRECT_URI")
-                    .or_else(|_| std::env::var("ZID_CALLBACK_URL"))
                     .unwrap_or_else(|_| "http://localhost:5173/auth/zid/callback".to_string()),
+                tls_insecure: Self::parse_bool_env("ZID_TLS_INSECURE"),
+                ca_file: std::env::var("ZID_CA_FILE").ok().filter(|s| !s.is_empty()),
             },
         };
         
@@ -134,6 +153,15 @@ impl Config {
 
         Ok(())
     }
+
+    /// Читает переменную окружения как булево (1, true, yes = true).
+    fn parse_bool_env(name: &str) -> bool {
+        let v = match std::env::var(name) {
+            Ok(s) => s.to_lowercase(),
+            Err(_) => return false,
+        };
+        matches!(v.as_str(), "1" | "true" | "yes")
+    }
 }
 
 impl Default for Config {
@@ -156,13 +184,14 @@ impl Default for Config {
             },
             zid: ZidConfig {
                 issuer: std::env::var("ZID_ISSUER")
-                    .or_else(|_| std::env::var("ZID_BASE_URL"))
                     .unwrap_or_else(|_| "http://localhost:5555".to_string()),
+                base_url: std::env::var("ZID_BASE_URL").ok().filter(|s| !s.is_empty()),
                 client_id: std::env::var("ZID_CLIENT_ID").unwrap_or_default(),
                 client_secret: std::env::var("ZID_CLIENT_SECRET").unwrap_or_default(),
                 redirect_uri: std::env::var("ZID_REDIRECT_URI")
-                    .or_else(|_| std::env::var("ZID_CALLBACK_URL"))
                     .unwrap_or_else(|_| "http://localhost:5173/auth/zid/callback".to_string()),
+                tls_insecure: Self::parse_bool_env("ZID_TLS_INSECURE"),
+                ca_file: std::env::var("ZID_CA_FILE").ok().filter(|s| !s.is_empty()),
             },
         }
     }
