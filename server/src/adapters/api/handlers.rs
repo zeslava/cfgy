@@ -222,10 +222,27 @@ fn build_zid_http_client(zid: &ZidConfig) -> reqwest::Client {
     builder.build().expect("reqwest Client для ZID")
 }
 
+/// Собрать URL для запроса с бэкенда: подставить base вместо хоста из discovery_url, путь взять из discovery_url.
+fn override_base_url(base: &str, discovery_url: &str) -> String {
+    let path = if let Some((_, rest)) = discovery_url.split_once("://") {
+        let from_slash = rest.find('/').map(|i| &rest[i..]).unwrap_or("/");
+        let path_only = from_slash.split_once('?').map(|(p, _)| p).unwrap_or(from_slash);
+        path_only
+    } else {
+        discovery_url
+    };
+    format!("{}{}", base.trim_end_matches('/'), path)
+}
+
 /// Получить endpoints ZID: из discovery или захардкоженные пути.
-/// Требуется абсолютный issuer (http:// или https://). При пустом/относительном issuer возвращаются fallback с базой http://localhost:5555.
-async fn get_zid_endpoints(issuer: &str, client: &reqwest::Client) -> (String, String, String) {
-    let base = issuer.trim_end_matches('/');
+/// discovery_base — по нему запрашивается /.well-known/openid-configuration.
+/// backend_requests_base — если задан, token и userinfo собираются как base + path из discovery (для запросов с бэкенда по ZID_BASE_URL).
+async fn get_zid_endpoints(
+    discovery_base: &str,
+    backend_requests_base: Option<&str>,
+    client: &reqwest::Client,
+) -> (String, String, String) {
+    let base = discovery_base.trim_end_matches('/');
     let base = if base.is_empty() || (!base.starts_with("http://") && !base.starts_with("https://")) {
         "http://localhost:5555"
     } else {
@@ -236,13 +253,28 @@ async fn get_zid_endpoints(issuer: &str, client: &reqwest::Client) -> (String, S
         && resp.status().is_success()
         && let Ok(discovery) = resp.json::<OidcDiscovery>().await
     {
-        let userinfo = discovery
-            .userinfo_endpoint
-            .unwrap_or_else(|| format!("{}/oauth/userinfo", base));
+        let (token_endpoint, userinfo_endpoint) = match backend_requests_base {
+            Some(b) => (
+                override_base_url(b, &discovery.token_endpoint),
+                override_base_url(
+                    b,
+                    discovery
+                        .userinfo_endpoint
+                        .as_deref()
+                        .unwrap_or("/oauth/userinfo"),
+                ),
+            ),
+            None => (
+                discovery.token_endpoint,
+                discovery
+                    .userinfo_endpoint
+                    .unwrap_or_else(|| format!("{}/oauth/userinfo", base)),
+            ),
+        };
         return (
             discovery.authorization_endpoint,
-            discovery.token_endpoint,
-            userinfo,
+            token_endpoint,
+            userinfo_endpoint,
         );
     }
     (
@@ -489,7 +521,7 @@ pub async fn zid_callback(
         .unwrap_or(config.zid.issuer.as_str());
     let client = build_zid_http_client(&config.zid);
     let (_, token_endpoint, userinfo_endpoint) =
-        get_zid_endpoints(backend_base, &client).await;
+        get_zid_endpoints(backend_base, config.zid.base_url.as_deref(), &client).await;
 
     let token_body = format!(
         "grant_type=authorization_code&client_id={}&client_secret={}&redirect_uri={}&code={}",
