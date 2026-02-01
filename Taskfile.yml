@@ -11,7 +11,6 @@ tasks:
 
   build:
     desc: Собрать cfgy-server (release)
-    internal: true
     cmds:
       - cargo build --release --bin cfgy-server
 
@@ -70,4 +69,3 @@ tasks:
     deps: [build-freebsd-binary]
     cmds:
       - ./freebsd/install.sh target/release/cfgy-server
-
