@@ -1,12 +1,12 @@
 #!/bin/sh
 #
 # Установка cfgy-server как системного сервиса на FreeBSD.
-# Запуск от root. Бинарник cfgy-server ожидается в текущей директории
-# или путь передаётся первым аргументом. Опционально: второй аргумент —
-# путь к собранной статике web (каталог web/dist), чтобы раздавать Web UI.
+# Запуск от root. Бинарник — первый аргумент (по умолчанию ./cfgy-server).
+# Статика Web UI копируется всегда: если второй аргумент не передан, берётся
+# web/dist из репозитория (относительно скрипта). Иначе — путь к каталогу web/dist.
 #
-# Пример (бинарник + статика):
-#   ./install.sh ../target/release/cfgy-server ../web/dist
+# Пример: ./install.sh ../target/release/cfgy-server
+# С явным путём к статике: ./install.sh ../target/release/cfgy-server ../web/dist
 #
 
 set -e
@@ -16,6 +16,13 @@ RUN_AS_USER="cfgy"
 BIN_NAME="cfgy-server"
 BIN_SOURCE="${1:-./${BIN_NAME}}"
 WEB_DIST_SOURCE="${2:-}"
+# Если второй аргумент не передан — пробуем каталог web/dist рядом со скриптом (из репозитория)
+if [ -z "${WEB_DIST_SOURCE}" ]; then
+    DEFAULT_WEB_DIST="$(cd "$(dirname "$0")/.." && pwd)/web/dist"
+    if [ -f "${DEFAULT_WEB_DIST}/index.html" ]; then
+        WEB_DIST_SOURCE="${DEFAULT_WEB_DIST}"
+    fi
+fi
 BIN_DEST="/usr/local/bin/${BIN_NAME}"
 RC_SCRIPT="$(dirname "$0")/cfgy_server"
 RC_DEST="/usr/local/etc/rc.d/${NAME}"
@@ -56,7 +63,7 @@ chown "${RUN_AS_USER}:${RUN_AS_USER}" "${LIB_DIR}" "${LOG_DIR}" "${RUN_DIR}"
 chown root:"${RUN_AS_USER}" "${ETC_DIR}"
 chmod 750 "${ETC_DIR}"
 
-# Опционально: копирование статики Web UI (web/dist) в /var/lib/cfgy_server/web/dist
+# Копирование статики Web UI (web/dist) в /var/lib/cfgy_server/web/dist (всегда, если источник есть)
 if [ -n "${WEB_DIST_SOURCE}" ]; then
     if [ ! -d "${WEB_DIST_SOURCE}" ] || [ ! -f "${WEB_DIST_SOURCE}/index.html" ]; then
         echo "Ошибка: каталог статики не найден или в нём нет index.html: ${WEB_DIST_SOURCE}" >&2
@@ -90,5 +97,15 @@ echo ""
 echo "Установка завершена."
 echo "1. Отредактируйте ${CONF_FILE}"
 echo "2. В /etc/rc.conf добавьте: ${NAME}_enable=\"YES\""
-echo "3. Запуск: service ${NAME} start"
-echo "4. Доп. команды: service ${NAME} status|config|logs"
+if [ -n "${WEB_DIST_SOURCE}" ]; then
+    echo "3. Статика Web UI установлена в ${WEB_DIST_DEST}"
+    echo "4. Запуск: service ${NAME} start"
+    echo "5. Доп. команды: service ${NAME} status|config|logs"
+else
+    echo "3. Для Web UI скопируйте статику в ${WEB_DIST_DEST}:"
+    echo "   cp -R /path/to/web/dist/* ${WEB_DIST_DEST}/"
+    echo "   chown -R ${RUN_AS_USER}:${RUN_AS_USER} ${LIB_DIR}/web"
+    echo "   (или перезапустите install.sh с двумя аргументами: бинарник и путь к web/dist)"
+    echo "4. Запуск: service ${NAME} start"
+    echo "5. Доп. команды: service ${NAME} status|config|logs"
+fi

@@ -18,13 +18,13 @@
    cd freebsd
    ```
 
-2. Запустите установку от root. Второй аргумент — путь к `web/dist` для раздачи статики (один бинарник + Web UI):
-   ```sh
-   sudo ./install.sh ../target/release/cfgy-server ../web/dist
-   ```
-   Только API без Web UI:
+2. Запустите установку от root. Статика Web UI копируется автоматически из `web/dist` репозитория (если есть). Второй аргумент — путь к `web/dist` (если запускаете не из каталога freebsd/ репо):
    ```sh
    sudo ./install.sh ../target/release/cfgy-server
+   ```
+   С явным путём к статике:
+   ```sh
+   sudo ./install.sh ../target/release/cfgy-server /path/to/web/dist
    ```
 
 3. Отредактируйте конфиг и включите сервис:
