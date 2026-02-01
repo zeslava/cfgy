@@ -578,13 +578,13 @@ async fn generate_secrets(format: String) -> Result<()> {
     // Генерация master_key (32 байта = 64 hex символа)
     let mut master_key_bytes = vec![0u8; MASTER_KEY_LEN];
     rng.fill(&mut master_key_bytes)
-        .context("Не удалось сгенерировать master_key")?;
+        .map_err(|_| anyhow::anyhow!("Не удалось сгенерировать master_key"))?;
     let master_key = hex::encode(&master_key_bytes);
 
     // Генерация jwt_secret (32 байта = 64 hex символа)
     let mut jwt_secret_bytes = vec![0u8; JWT_SECRET_LEN];
     rng.fill(&mut jwt_secret_bytes)
-        .context("Не удалось сгенерировать jwt_secret")?;
+        .map_err(|_| anyhow::anyhow!("Не удалось сгенерировать jwt_secret"))?;
     let jwt_secret = hex::encode(&jwt_secret_bytes);
 
     match format.as_str() {

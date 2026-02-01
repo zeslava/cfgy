@@ -52,6 +52,11 @@ tasks:
       - sqlx migrate run --database-url "$DATABASE_URL"
     ignore_error: true
 
+  generate-secrets:
+    desc: Сгенерировать CFGY_MASTER_KEY и CFGY_JWT_SECRET (через cfgy generate-secrets)
+    cmds:
+      - cargo run -p cfgy-cli --release -- generate-secrets --format env
+
   wait-postgres:
     internal: true
     cmds:

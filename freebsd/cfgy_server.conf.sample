@@ -1,6 +1,6 @@
 # Конфигурация cfgy-server (переменные окружения)
 # Файл: /usr/local/etc/cfgy_server/cfgy_server.conf
-# Права: 0640, владелец root:cfgy_server
+# Права: 0640, владелец root:cfgy
 
 # База данных
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/cfgy
