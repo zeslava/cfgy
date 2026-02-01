@@ -66,6 +66,5 @@ tasks:
 
   install-freebsd:
     desc: Установить cfgy-server как системный сервис на FreeBSD (запускать от root на целевом хосте)
-    deps: [build-freebsd-binary]
     cmds:
       - ./freebsd/install.sh target/release/cfgy-server
