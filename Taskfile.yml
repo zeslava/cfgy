@@ -16,7 +16,7 @@ tasks:
       - cargo build --release --bin cfgy-server
 
   run:
-    desc: Запустить сервер локально (БД отдельно: task up или свой инстанс)
+    desc: "Запустить сервер локально (БД отдельно: task up или свой инстанс)"
     deps: [build, migrate]
     cmds:
       - echo "Сервер на http://localhost:8080"
