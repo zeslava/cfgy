@@ -20,17 +20,17 @@ tasks:
       - cargo build --release -p cfgy-cli
 
   install_cli:
-    desc: Установить cfgy CLI в /usr/local/bin (запускать с sudo: sudo task install_cli)
+    desc: "Установить cfgy CLI в /usr/local/bin (запускать с sudo: sudo task install_cli)"
     deps: [build_cli]
     cmds:
       - install -m 755 target/release/cfgy-cli /usr/local/bin/cfgy
-      - echo "Установлено: /usr/local/bin/cfgy"
+      - 'echo "Установлено: /usr/local/bin/cfgy"'
 
   uninstall_cli:
-    desc: Удалить cfgy CLI из /usr/local/bin (запускать с sudo: sudo task uninstall_cli)
+    desc: "Удалить cfgy CLI из /usr/local/bin (запускать с sudo: sudo task uninstall_cli)"
     cmds:
       - rm -f /usr/local/bin/cfgy
-      - echo "Удалено: /usr/local/bin/cfgy"
+      - 'echo "Удалено: /usr/local/bin/cfgy"'
 
   run:
     desc: "Запустить сервер локально (БД отдельно: task up или свой инстанс)"
