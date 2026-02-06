@@ -14,22 +14,22 @@ tasks:
     cmds:
       - cargo build --release --bin cfgy-server
 
-  build_cli:
+  build-cli:
     desc: Собрать cfgy CLI (release)
     cmds:
       - cargo build --release -p cfgy-cli
 
-  install_cli:
-    desc: "Установить cfgy CLI в /usr/local/bin (запускать с sudo: sudo task install_cli)"
-    deps: [build_cli]
+  install-cli:
+    desc: "Установить cfgy CLI в /usr/local/bin (запускать с sudo: sudo task install-cli)"
+    deps: [build-cli]
     cmds:
-      - install -m 755 target/release/cfgy-cli /usr/local/bin/cfgy
+      - sudo install -m 755 target/release/cfgy-cli /usr/local/bin/cfgy
       - 'echo "Установлено: /usr/local/bin/cfgy"'
 
-  uninstall_cli:
-    desc: "Удалить cfgy CLI из /usr/local/bin (запускать с sudo: sudo task uninstall_cli)"
+  uninstall-cli:
+    desc: "Удалить cfgy CLI из /usr/local/bin (запускать с sudo: sudo task uninstall-cli)"
     cmds:
-      - rm -f /usr/local/bin/cfgy
+      - sudo rm -f /usr/local/bin/cfgy
       - 'echo "Удалено: /usr/local/bin/cfgy"'
 
   run:
@@ -39,7 +39,7 @@ tasks:
       - echo "Сервер на http://localhost:8080"
       - ./target/release/cfgy-server
 
-  build_web:
+  build-web:
     desc: Собрать веб в релиз (web/build)
     dir: web
     cmds:

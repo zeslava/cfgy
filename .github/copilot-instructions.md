@@ -87,7 +87,7 @@ Services receive repositories as Arc-wrapped trait objects or via dependency con
 
 ## CLI Context & Commands
 
-The CLI maintains project context in `.cfgy.yaml`:
+The CLI maintains project context in `cfgy.yaml`:
 
 ```yaml
 project: my-project
@@ -97,7 +97,7 @@ configuration: production
 **Command structure** (defined in `cli/src/commands.rs`):
 
 ```bash
-cfgy init [project]              # Initialize .cfgy.yaml in current directory
+cfgy init [project]              # Initialize cfgy.yaml in current directory
 cfgy use <configuration>         # Set active configuration (e.g., 'dev', 'production')
 cfgy set KEY VALUE [--env ENV]   # Store/update a secret
 cfgy get KEY [--env ENV]         # Retrieve a secret
@@ -110,8 +110,8 @@ cfgy token list                  # List API tokens (requires server mode)
 
 **Mode detection** — Auto-selects based on env:
 
-- **Server mode** (if `CFGY_API_TOKEN` + `CFGY_SERVER_URL` are set): All operations hit remote API with encryption
-- **Local mode** (default): Stores unencrypted in `.cfgy.yaml`
+- **Server mode** (if `CFGY_TOKEN` + `CFGY_SERVER_URL` are set): All operations hit remote API with encryption
+- **Local mode** (default): Stores unencrypted in `cfgy.yaml`
 
 **Key difference**: Local mode stores secrets in plain YAML files (for dev/testing). Server mode encrypts everything server-side with master key.
 
@@ -344,7 +344,7 @@ curl http://zid-host:5555/health
 ```
 Web Dashboard → API Client → Axum Routes → Application Services → Repositories → PostgreSQL
      (Svelte)      (HTTP)      (port/adapters)  (business logic)   (sqlx)       (encryption)
-CLI Tool ↔ same flow when in server mode, or local .cfgy.yaml when offline
+CLI Tool ↔ same flow when in server mode, or local cfgy.yaml when offline
 ```
 
 **Example: Setting a secret in server mode**:
@@ -410,7 +410,7 @@ The server serves web assets at `/`. After `npm run build` in `web/`, distribute
 | `cli/src/main.rs`                  | CLI entry point & command dispatcher                           |
 | `cli/src/commands.rs`              | Command implementations (set, get, list, run, etc.)            |
 | `cli/src/client.rs`                | HTTP client for server API calls                               |
-| `cli/src/storage.rs`               | Local `.cfgy.yaml` file handling                               |
+| `cli/src/storage.rs`               | Local `cfgy.yaml` file handling                               |
 | `docker-compose.yml`               | PostgreSQL + server container config                           |
 | `Taskfile.yml`                     | Task runner for common development commands                     |
 | `tests/smoke_tests.rs`             | API integration tests; run with `cargo test --bin smoke_tests`  |
@@ -443,18 +443,18 @@ psql $DATABASE_URL -c "\dt"  # List tables
 curl -H "Authorization: Bearer <token>" http://localhost:8080/api/projects
 
 # Debug CLI in server mode
-export CFGY_API_TOKEN=<your-token>
+export CFGY_TOKEN=<your-token>
 export CFGY_SERVER_URL=http://localhost:8080
 export CFGY_LOG=debug  # If your CLI supports debug logging
 cfgy list  # Test command
 
 # Test CLI in local mode (no server needed)
-rm .cfgy.yaml  # Start fresh
+rm cfgy.yaml  # Start fresh
 cfgy init my-project
 cfgy use dev
 cfgy set MY_KEY MY_VALUE
 cfgy get MY_KEY  # Should return unencrypted value
-cat .cfgy.yaml  # Inspect raw file
+cat cfgy.yaml  # Inspect raw file
 ```
 
 **Database Issues:**
@@ -474,6 +474,4 @@ psql postgres://postgres:postgres@localhost:5433/cfgy -c "SELECT * FROM users;"
 
 ## Project Status
 
-- ✅ Stages 0–3: MVP complete (CLI, API, Web Dashboard)
-- ⏳ Stages 4–6: RBAC, commands, collaboration, audit, webhooks
-- See `plan.md` for full roadmap
+- MVP complete (CLI, API, Web Dashboard)

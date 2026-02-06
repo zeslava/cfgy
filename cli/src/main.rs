@@ -8,20 +8,29 @@ mod storage;
 use anyhow::{Context, Result};
 use clap::Parser;
 use client::ApiClient;
-use commands::{Cli, Commands, ProjectsAction, TokenAction};
+use commands::{Cli, Commands, ConfigAction, ProjectsAction, TokenAction};
 use config::AppConfig;
 use formats::OutputFormat;
 use std::io::{self, Write};
 use std::process::Command;
 use storage::ProjectConfig;
 
+/// Убедиться, что настроено подключение к серверу; при отсутствии конфига — интерактивный диалог.
+fn ensure_server_config(app_config: AppConfig) -> Result<AppConfig> {
+    if app_config.has_server_access() {
+        return Ok(app_config);
+    }
+    config::interactive_setup(&app_config)?;
+    Ok(AppConfig::load())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Загрузить переменные окружения из .env файла, если он существует
     dotenv::dotenv().ok();
 
-    // Загрузить конфигурацию приложения из переменных окружения
-    let app_config = AppConfig::load();
+    // Загрузить конфигурацию: ~/.cfgy/config.yaml + env
+    let mut app_config = AppConfig::load();
 
     let cli = Cli::parse();
 
@@ -32,22 +41,42 @@ async fn main() -> Result<()> {
             key,
             value,
             configuration,
-        } => set_config(key, value, configuration, &app_config).await,
+        } => {
+            app_config = ensure_server_config(app_config)?;
+            set_config(key, value, configuration, &app_config).await
+        }
         Commands::Get {
             key,
             configuration,
             format,
-        } => get_config(key, configuration, format, &app_config).await,
+        } => {
+            app_config = ensure_server_config(app_config)?;
+            get_config(key, configuration, format, &app_config).await
+        }
         Commands::List {
             configuration,
             format,
-        } => list_configs(configuration, format, &app_config).await,
+        } => {
+            app_config = ensure_server_config(app_config)?;
+            list_configs(configuration, format, &app_config).await
+        }
         Commands::Delete { key, configuration } => {
+            app_config = ensure_server_config(app_config)?;
             delete_config(key, configuration, &app_config).await
         }
-        Commands::Run { command } => run_command(command, &app_config).await,
-        Commands::Projects { action } => handle_projects(action, &app_config).await,
+        Commands::Run { command } => {
+            app_config = ensure_server_config(app_config)?;
+            run_command(command, &app_config).await
+        }
+        Commands::Projects { action } => {
+            // View не требует подключения к серверу
+            if !matches!(action, ProjectsAction::View) {
+                app_config = ensure_server_config(app_config)?;
+            }
+            handle_projects(action, &app_config).await
+        }
         Commands::Token { action } => handle_token(action, &app_config).await,
+        Commands::Config { action } => handle_config(action, &app_config).await,
         Commands::GenerateSecrets { format } => generate_secrets(format).await,
     }
 }
@@ -176,7 +205,7 @@ async fn list_configs(
     let configs = client.get_secrets(project.id, &configuration).await?;
 
     if configs.is_empty() {
-        eprintln!("⚠ Нет конфигов для configuration '{}'", configuration);
+        eprintln!("⚠ Нет параметров для configuration '{}'", configuration);
         return Ok(());
     }
 
@@ -242,7 +271,7 @@ async fn run_command(command: Vec<String>, app_config: &AppConfig) -> Result<()>
     let configs = client.get_secrets(project.id, &configuration).await?;
 
     if configs.is_empty() {
-        eprintln!("⚠ Нет конфигов для configuration '{}'", configuration);
+        eprintln!("⚠ Нет параметров для configuration '{}'", configuration);
     }
 
     let (cmd_name, args) = command
@@ -544,9 +573,7 @@ async fn use_configuration(configuration: String) -> Result<()> {
 async fn handle_token(action: TokenAction, app_config: &AppConfig) -> Result<()> {
     match action {
         TokenAction::List => {
-            let env_token = app_config.api_token.as_ref();
-
-            if let Some(token) = env_token {
+            if let Some(token) = app_config.api_token.as_ref() {
                 println!("✓ Токен установлен");
                 let display_len = token.len().min(10);
                 println!(
@@ -554,16 +581,58 @@ async fn handle_token(action: TokenAction, app_config: &AppConfig) -> Result<()>
                     display_len,
                     &token[..display_len]
                 );
-                println!("  Источник: переменная окружения CFGY_API_TOKEN");
+                let source = match app_config.token_source {
+                    Some("env") => "переменная окружения CFGY_TOKEN",
+                    Some("file") => "файл ~/.cfgy/config.yaml",
+                    _ => "неизвестно",
+                };
+                println!("  Источник: {}", source);
             } else {
                 println!("⚠ Токен не установлен");
                 println!("  Установите токен через переменную окружения:");
-                println!("    export CFGY_API_TOKEN=<ваш_токен>");
-                println!("  Или создайте токен в веб-дашборде");
+                println!("    export CFGY_TOKEN=<ваш_токен>");
+                println!("  или укажите token в ~/.cfgy/config.yaml");
+                println!("  Токен можно создать в веб-дашборде");
             }
             Ok(())
         }
     }
+}
+
+/// Обработка команд центрального конфига (~/.cfgy/config.yaml)
+async fn handle_config(action: ConfigAction, app_config: &AppConfig) -> Result<()> {
+    match action {
+        ConfigAction::Init => config_init(app_config).await,
+        ConfigAction::Show => config_show(app_config).await,
+    }
+}
+
+async fn config_init(app_config: &AppConfig) -> Result<()> {
+    config::interactive_setup(app_config)?;
+    Ok(())
+}
+
+async fn config_show(app_config: &AppConfig) -> Result<()> {
+    let path = config::config_file_path();
+    if let Some(ref p) = path {
+        println!("Файл: {}", p.display());
+    } else {
+        println!("Файл: ~/.cfgy/config.yaml (HOME не задан)");
+    }
+    println!("server_url: {}", app_config.server_url);
+    if let Some(token) = app_config.api_token.as_ref() {
+        let display_len = token.len().min(10);
+        println!("token: {}... ({} символов)", &token[..display_len], token.len());
+        let source = match app_config.token_source {
+            Some("env") => "переменная окружения CFGY_TOKEN",
+            Some("file") => "файл ~/.cfgy/config.yaml",
+            _ => "неизвестно",
+        };
+        println!("источник токена: {}", source);
+    } else {
+        println!("token: не установлен");
+    }
+    Ok(())
 }
 
 /// Генерация секретных ключей для сервера

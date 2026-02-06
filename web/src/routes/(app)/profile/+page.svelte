@@ -138,7 +138,7 @@
 			<Input value={newToken.token} readonly className="flex-1" />
 			<Button variant="basic-secondary" size="small-text" onclick={() => copyToken(newToken!.token)}>Копировать</Button>
 		</div>
-		<p class="text-regular-16 mt-4 text-basic-gray">Используйте в CLI: CFGY_API_TOKEN=... CFGY_SERVER_URL=...</p>
+		<p class="text-regular-16 mt-4 text-basic-gray">Используйте в CLI: CFGY_TOKEN=... CFGY_SERVER_URL=...</p>
 	{:else}
 		<form onsubmit={(e) => { e.preventDefault(); handleCreate(); }}>
 			<Input bind:value={tokenName} placeholder="Имя токена" className="w-full mb-4" required />

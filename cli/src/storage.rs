@@ -11,15 +11,9 @@ pub struct ProjectConfig {
     pub project: String,
     /// Текущая configuration проекта (например: dev/staging/prod)
     ///
-    /// В `.cfgy.yaml` это поле хранится как `configuration`.
+    /// В cfgy.yaml это поле хранится как `configuration`.
     #[serde(default = "default_configuration")]
     pub configuration: String,
-
-    /// Backward-compat: старое имя поля в `.cfgy.yaml` (`environment`).
-    ///
-    /// Если в файле есть и `configuration`, и `environment`, приоритет — за `configuration`.
-    #[serde(default)]
-    pub environment: Option<String>,
 }
 
 fn default_project_name() -> String {
@@ -40,7 +34,7 @@ impl ProjectConfig {
             std::env::current_dir().context("Не удалось определить текущую директорию")?;
 
         loop {
-            let candidate = dir.join(".cfgy.yaml");
+            let candidate = dir.join("cfgy.yaml");
             if candidate.exists() {
                 return Ok(candidate);
             }
@@ -51,14 +45,14 @@ impl ProjectConfig {
         }
 
         Err(anyhow::anyhow!(
-            "Конфигурационный файл не найден (ожидался .cfgy.yaml в текущей директории или выше)"
+            "Конфигурационный файл не найден (ожидался cfgy.yaml в текущей директории или выше)"
         ))
     }
 
     /// Путь к конфигурационному файлу в текущей директории
     pub fn config_path_in_current_dir() -> Result<PathBuf> {
         std::env::current_dir()
-            .map(|p| p.join(".cfgy.yaml"))
+            .map(|p| p.join("cfgy.yaml"))
             .context("Не удалось определить текущую директорию")
     }
 
@@ -73,18 +67,8 @@ impl ProjectConfig {
         let content = fs::read_to_string(&path)
             .with_context(|| format!("Не удалось прочитать файл: {}", path.display()))?;
 
-        let mut config: Self = serde_yaml::from_str(&content)
+        let config: Self = serde_yaml::from_str(&content)
             .with_context(|| format!("Не удалось распарсить YAML: {}", path.display()))?;
-
-        // Backward-compat: если `configuration` отсутствует/пустая, но есть `environment`,
-        // подхватить её как configuration.
-        if config.configuration.trim().is_empty() {
-            if let Some(env) = config.environment.as_deref() {
-                if !env.trim().is_empty() {
-                    config.configuration = env.to_string();
-                }
-            }
-        }
 
         Ok(config)
     }
@@ -95,25 +79,14 @@ impl ProjectConfig {
             return Ok(Self {
                 project: default_project_name(),
                 configuration: default_configuration(),
-                environment: None,
             });
         }
 
         let content = fs::read_to_string(&path)
             .with_context(|| format!("Не удалось прочитать файл: {}", path.display()))?;
 
-        let mut config: Self = serde_yaml::from_str(&content)
+        let config: Self = serde_yaml::from_str(&content)
             .with_context(|| format!("Не удалось распарсить YAML: {}", path.display()))?;
-
-        // Backward-compat: если `configuration` отсутствует/пустая, но есть `environment`,
-        // подхватить её как configuration.
-        if config.configuration.trim().is_empty() {
-            if let Some(env) = config.environment.as_deref() {
-                if !env.trim().is_empty() {
-                    config.configuration = env.to_string();
-                }
-            }
-        }
 
         Ok(config)
     }

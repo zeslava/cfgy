@@ -1,106 +1,63 @@
 # CFGY
 
-Configuration & Parameter Management с полноценным стеком: **CLI + Server API + Web Dashboard**.
+Система управления конфигурацией и параметрами с полноценным стеком: **CLI + Server API + Web Dashboard**.
 
-> Примечание по документации: всё описание проекта и инструкции по запуску держим в этом корневом `README.md`.
-
-## Текущий статус
-
-**Этапы 0–3: ✅ завершены (MVP готов)**
-- **CLI**: работа в контексте проекта по `.cfgy.yaml` (project + текущая `configuration`) + работа с сервером
-- **Backend**: REST API (Axum) + PostgreSQL + миграции
-- **Шифрование параметров**: AES-GCM (на сервере используется master key)
-- **Web Dashboard** (Svelte 5 + SvelteKit): регистрация/логин (JWT), проекты / configurations / параметры (CRUD), API токены
-
-**Этапы 4–6: ⏳ в планах**
-- RBAC/команды/коллаборация, аудит
-- продвинутые функции (webhooks/интеграции/метрики)
-- production-ready (документация, тесты, мониторинг, бэкапы, healthchecks)
-
-Подробнее: [plan.md](./plan.md).
+> Всё описание проекта и инструкции по запуску — в этом корневом `README.md`.
 
 ## Структура репозитория
 
 Монорепозиторий (Cargo workspace):
 
-- `server/` — backend сервер (Axum)
-- `cli/` — CLI клиент
-- `web/` — SPA фронтенд (Svelte 5 + SvelteKit)
+- `server/` — backend (Axum, Rust, edition 2024)
+- `cli/` — CLI-клиент (Rust)
+- `web/` — SPA (Svelte 5 + SvelteKit, TypeScript)
 - `tests/` — интеграционные smoke-тесты API
+- `freebsd/` — установка сервера как системного сервиса на FreeBSD ([freebsd/README.md](./freebsd/README.md))
 
 ## Требования
 
-### Для запуска через Docker (рекомендуется)
-- Docker + Docker Compose (v1 `docker-compose` или v2 `docker compose`)
-- Node.js + npm (нужно для сборки `web/`, артефакты в `web/build`)
-- Rust toolchain (если собираешь/разрабатываешь Rust-компоненты локально)
-- Task (Taskfile runner): `go install github.com/go-task/task/v3/cmd/task@latest` или через пакетный менеджер
+- **Docker + Docker Compose** — для PostgreSQL (`task up`) или полного стека в контейнерах
+- **Rust** (edition 2024) — для сервера и CLI
+- **Node.js + npm** — для сборки и dev-режима веб-приложения (`web/build`)
+- **Task** — [taskfile.dev](https://taskfile.dev), установка: `go install github.com/go-task/task/v3/cmd/task@latest` или пакетный менеджер
+- **sqlx-cli** (для миграций без Task): `cargo install sqlx-cli --no-default-features --features postgres`
 
-### Для локального запуска сервера без Docker
-- Rust toolchain (edition 2024)
-- PostgreSQL
-- `sqlx-cli` для миграций:
-  - `cargo install sqlx-cli --no-default-features --features postgres`
-
-## Быстрый старт (рекомендуется: Docker Compose + Taskfile)
+## Быстрый старт (Docker + Taskfile)
 
 ```bash
-# посмотреть доступные команды
-task
+task                    # список команд
 
-# локальная разработка (PostgreSQL в Docker + сервер локально)
-task run
+task up                 # поднять PostgreSQL в Docker (порт 5433)
+task run                # собрать сервер (release), применить миграции, запустить сервер локально
+task web                # в отдельном терминале: веб dev-сервер на http://localhost:5173
 
-# запустить веб dev сервер (в отдельном терминале)
-task web
-
-# запустить PostgreSQL в Docker
-task up
-
-# остановить контейнеры
-task down
-
-# применить миграции
-task migrate
+task down               # остановить контейнеры
+task migrate            # только применить миграции
 ```
 
-После `task run`:
-- Server: `http://localhost:8080`
-- PostgreSQL (наружу): `localhost:5433` (в контейнере: `5432`)
+После `task up` и `task run`:
+- Сервер: `http://localhost:8080`
+- PostgreSQL: хост `localhost:5433` (в контейнере — 5432)
 
-Для просмотра статуса контейнеров и логов используйте `docker compose` напрямую:
+Для просмотра статуса контейнеров и логов:
 ```bash
-# статус контейнеров
 docker compose ps
-
-# логи сервера
-docker compose logs -f server
-
-# логи PostgreSQL
-docker compose logs -f postgres
+docker compose logs -f postgres   # при использовании task up + task run
+# если сервер запущен в Docker (docker compose up): docker compose logs -f server
 ```
 
 ### Ежедневный UX (CLI)
-CLI работает “в контексте проекта”, который хранится в `.cfgy.yaml` (project + текущая `configuration`).
+CLI работает в контексте проекта (файл `cfgy.yaml`: имя проекта и текущая configuration). **Configuration** — это окружение (dev, prod и т.д.); **параметры** — пары ключ–значение внутри выбранной configuration.
 
-Минимальный набор команд, который обычно нужен:
+Типичные команды:
 ```bash
-# выбрать configuration по умолчанию для проекта (запишется в .cfgy.yaml)
-cfgy use dev
-
-# установить/прочитать параметр в текущей configuration
+cfgy use dev                    # выбрать configuration по умолчанию (записывается в cfgy.yaml)
 cfgy set DATABASE_URL postgres://...
 cfgy get DATABASE_URL
+cfgy list                       # список параметров текущей configuration
+cfgy run -- <command> [args...] # запуск команды с env из текущей configuration
 
-# список параметров текущей configuration
-cfgy list
-
-# запустить команду с параметрами текущей configuration, прокинутыми в env процесса
-cfgy run -- <command> [args...]
-
-# сгенерировать секретные ключи для сервера (CFGY_MASTER_KEY, CFGY_JWT_SECRET)
-cfgy generate-secrets
-# или в формате для shell:
+cfgy generate-secrets           # сгенерировать CFGY_MASTER_KEY и CFGY_JWT_SECRET
 cfgy generate-secrets --format shell
 ```
 
@@ -115,163 +72,97 @@ cp .env.example .env
 
 Файл `.env` уже добавлен в `.gitignore` и не будет закоммичен в репозиторий.
 
-### Сервер (Docker Compose по умолчанию)
-В `docker-compose.yml` сервер использует:
-- `DATABASE_URL` — строка подключения к PostgreSQL (используется и для миграций, и для сервера)
-- `DATABASE_MAX_CONNECTIONS` — максимальное количество подключений к БД (опционально, по умолчанию: 20)
-- `SERVER_HOST`, `SERVER_PORT` — хост и порт сервера (опционально)
-- `CFGY_MASTER_KEY` — master key для шифрования параметров (рекомендуется установить свой)
-- `CFGY_JWT_SECRET` — секрет для JWT (рекомендуется установить свой)
-- ZID OAuth 2.0 (вход через ZID): `ZID_ISSUER`, `ZID_CLIENT_ID`, `ZID_CLIENT_SECRET`, `ZID_REDIRECT_URI` — см. `.env.example`
-- `RUST_LOG` — уровень логирования
+### Сервер
+Основные переменные (полный список и комментарии — в `.env.example`):
+- **БД:** `DATABASE_URL`, опционально `DATABASE_MAX_CONNECTIONS`
+- **Безопасность:** `CFGY_MASTER_KEY` (шифрование параметров), `CFGY_JWT_SECRET` (JWT-сессии)
+- **Сервер:** `SERVER_HOST`, `SERVER_PORT` (по умолчанию 127.0.0.1:8080)
+- **ZID OAuth 2.0:** `ZID_ISSUER`, `ZID_CLIENT_ID`, `ZID_CLIENT_SECRET`, `ZID_REDIRECT_URI`; опционально `ZID_BASE_URL`, `ZID_TLS_INSECURE`, `ZID_CA_FILE`
+- **Прочее:** `RUST_LOG`, `ALLOWED_ORIGINS` (CORS), `CFGY_WEB_ROOT`, `ENABLE_HTTPS`, `LOG_FORMAT`
 
-Можно переопределять через env при запуске, например:
-- `CFGY_MASTER_KEY=... CFGY_JWT_SECRET=... task run`
+Переопределение при запуске: `CFGY_MASTER_KEY=... CFGY_JWT_SECRET=... task run`
 
-**Для домашнего использования:** можно оставить дефолтные значения - система будет работать с предупреждениями.
+**Для домашнего использования** можно оставить значения по умолчанию — сервер будет работать с предупреждениями.
 
-### CLI (режим работы)
-Основной источник контекста для CLI — файл проекта `.cfgy.yaml` (project + текущая `configuration`).
+### CLI (подключение к серверу)
+Контекст проекта — `cfgy.yaml` (имя проекта и текущая configuration). Подключение к серверу задаётся переменными окружения или центральным конфигом `~/.cfgy/config.yaml` (переменные окружения имеют приоритет над файлом).
 
-Переменные окружения отвечают за подключение к серверу:
-- `CFGY_SERVER_URL` — базовый URL сервера, обычно `http://localhost:8080`
-- `CFGY_API_TOKEN` — API токен (создаётся через веб-дашборд)
+**Переменные окружения:**
+- `CFGY_SERVER_URL` — URL сервера (например `http://localhost:8080` или `https://cfgy.example.com`). Если схема не указана, используется `http://`.
+- `CFGY_TOKEN` — API-токен (создаётся в веб-дашборде)
 
-Пример:
+**Центральный конфиг** `~/.cfgy/config.yaml` (YAML):
+
+```yaml
+server_url: "http://localhost:8080"
+token: "your-token"
+```
+
+Рекомендуется права доступа на файл `0600`. Токен и URL можно задать либо в env, либо в этом файле; env переопределяет файл (удобно для CI).
+
 ```bash
 export CFGY_SERVER_URL=http://localhost:8080
-export CFGY_API_TOKEN="<token-from-dashboard>"
+export CFGY_TOKEN="<token-from-dashboard>"
 ```
 
 ## Ручной запуск
 
-### 1) Поднять PostgreSQL
-В Docker:
-```bash
-task up
-# или напрямую: docker compose up -d postgres
-```
-
-Порт наружу: `5433`.
-
-### 2) Миграции
-Рекомендуемый путь — через `task migrate`:
-
-```bash
-task migrate
-```
-
-По умолчанию используется переменная окружения `DATABASE_URL`:
-- `DATABASE_URL=postgres://postgres:postgres@localhost:5433/cfgy`
-
-Если у тебя другой URL — передай его:
-```bash
-DATABASE_URL="postgres://..." task migrate
-```
-
-### 3) Запуск сервера локально
-Убедись, что PostgreSQL уже запущен и миграции применены, затем:
-```bash
-task run
-```
-
-Эта команда запускает сервер локально через `cargo run --bin cfgy-server`.
-
-### 4) Инициализация проекта и выбор configuration
-CLI ожидает файл `.cfgy.yaml` (создаётся в директории проекта):
-
-```bash
-# в корне твоего проекта
-cfgy init
-
-# выбрать configuration по умолчанию (например dev/staging/prod)
-cfgy use dev
-```
-
-Дальше `cfgy get/set/list/run` будут использовать выбранную `configuration` по умолчанию.
-
-### 5) Сборка фронтенда (если нужно)
-Для production сборки:
-```bash
-cd web
-npm install
-npm run build
-```
+1. **PostgreSQL** — `task up` или `docker compose up -d postgres`. Порт с хоста: `5433`.
+2. **Миграции** — `task migrate` (использует `DATABASE_URL` из `.env`; по умолчанию `postgres://postgres:postgres@localhost:5433/cfgy`). Другой URL: `DATABASE_URL="postgres://..." task migrate`.
+3. **Сервер** — `task run` (собирает release, применяет миграции, запускает `cfgy-server`).
+4. **Проект для CLI** — в корне проекта: `cfgy init`, затем `cfgy use dev` (или другую configuration). Далее `cfgy get/set/list/run` используют выбранную configuration.
+5. **Сборка веб-приложения** — `cd web && npm install && npm run build` (артефакты в `web/build`).
 
 ## Команды Taskfile
 
-Смотри полный список:
-```bash
-task
-```
+Полный список: `task` или `task --list`.
 
-Основные команды:
-- `task run` — локальная разработка (PostgreSQL в Docker + сервер локально)
-- `task web` — запустить веб (Svelte) dev сервер
-- `task up` — запустить PostgreSQL в Docker
+Основные:
+- `task run` — собрать сервер (release), применить миграции, запустить сервер локально (нужен PostgreSQL: `task up` или свой инстанс)
+- `task web` — запустить веб dev-сервер (SvelteKit, порт 5173)
+- `task up` — поднять PostgreSQL в Docker (порт 5433)
 - `task down` — остановить контейнеры
 - `task migrate` — применить миграции
+- `task build` — собрать cfgy-server (release)
+- `task build-cli` — собрать CLI (release)
+- `task build-web` — собрать веб в `web/build`
+- `task generate-secrets` — вывести `CFGY_MASTER_KEY` и `CFGY_JWT_SECRET` (через `cfgy generate-secrets`)
+- `task install-cli` — установить CLI в `/usr/local/bin/cfgy` (требуется sudo)
+- `task install-freebsd` — установить cfgy-server как системный сервис на FreeBSD (от root на целевом хосте)
 
-Для других операций используйте стандартные инструменты:
-- `cargo build`, `cargo check`, `cargo test`, `cargo clippy`, `cargo fmt` — стандартные команды Cargo
-- `docker compose ps` — статус контейнеров
-- `docker compose logs -f [service]` — логи сервисов
-- `cargo test --bin smoke_tests` — smoke-тесты API
+Остальное: `cargo build/check/test/clippy/fmt`, `docker compose ps/logs`, `cargo test --bin smoke_tests`.
 
 ## Web Dashboard
 
-Дашборд доступен на:
-- `http://localhost:8080`
+Дашборд доступен по адресу сервера: `http://localhost:8080` (при `task run`).
 
-Функции:
-- регистрация/логин (JWT), вход через ZID (OAuth 2.0 Authorization Code)
-- проекты: CRUD
-- configurations: CRUD
-- параметры: CRUD (часть параметров может быть чувствительной, хранение шифруется)
-- API токены: создание/просмотр/удаление
+Возможности:
+- Регистрация, логин (JWT), вход через ZID (OAuth 2.0 Authorization Code), восстановление пароля
+- Проекты, configurations (окружения), параметры (ключи–значения) — CRUD (чувствительные параметры хранятся в зашифрованном виде)
+- API-токены: создание, просмотр, удаление
 
-### Dev-режим web
-В репозитории есть `task web`, который запускает web dev server (SvelteKit/Vite) и предполагает, что API уже запущен (через `task run` в другом терминале).
-
-Важно: эта команда интерактивная, поэтому используй её вручную, когда нужно.
+### Dev-режим веб-приложения
+`task web` запускает SvelteKit dev-сервер на `http://localhost:5173`. API должен быть уже запущен (`task run` в другом терминале). Команда интерактивная — запускайте вручную.
 
 ## Токены и аутентификация
 
-Есть два типа токенов (концептуально):
-- **JWT (session token)** — для веб-сессии (логин в дашборде)
-- **API token** — для программного доступа (CLI/CI)
+- **JWT (session token)** — веб-сессия (логин в дашборде)
+- **API-токен** — доступ из CLI/CI (создаётся только в веб-дашборде)
 
-**Важно:** API токены **создаются только через веб-дашборд**.
-
-Порядок:
-1. Запусти сервер (`task run`) и открой `http://localhost:8080`
-2. Зарегистрируйся/войдите
-3. Создай **API token**
-4. Экспортируй его для CLI:
-   ```bash
-   export CFGY_SERVER_URL=http://localhost:8080
-   export CFGY_API_TOKEN="<token>"
-   ```
-5. Инициализируй проект и выбери configuration (один раз на проект/репозиторий):
-   ```bash
-   cfgy init
-   cfgy use dev
-   ```
-6. Используй короткие команды (`cfgy get/set/list/run`) — они будут применять текущую `configuration` из `.cfgy.yaml`.
+Типичный порядок: запустить сервер (`task run`) → открыть `http://localhost:8080` → зарегистрироваться/войти → создать API-токен → экспортировать `CFGY_SERVER_URL` и `CFGY_TOKEN` → в проекте выполнить `cfgy init` и `cfgy use dev` → использовать `cfgy get/set/list/run`.
 
 ## Smoke-тесты API
 
-В `tests/` есть интеграционные smoke-тесты, которые проверяют основные сценарии API (регистрация/логин, проекты/configurations/параметры и т.д.).
+Интеграционные тесты в `tests/` проверяют основные сценарии API (регистрация/логин, проекты/configurations/параметры).
 
-### Запуск
-
-1) Убедись, что сервер доступен на `http://localhost:8080` (например, `task run`).
-
-2) Запусти:
+Запуск: сервер должен быть доступен на `http://localhost:8080` (`task run`), затем:
 ```bash
 cargo test --bin smoke_tests
 ```
 
-## Архитектура и дизайн
+## Архитектура и документация
 
-- `design.md` — заметки по архитектуре и устройству сервера
+- [design.md](./design.md) — архитектура и устройство сервера (Hexagonal Architecture)
+- [AGENTS.md](./AGENTS.md) — правила для разработки (AI-агенты, стиль кода, миграции, API)
+
+Лицензия: [LICENSE](./LICENSE).

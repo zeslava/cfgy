@@ -253,7 +253,10 @@ impl ApiClient {
         env_name: &str,
         secrets: &HashMap<String, String>,
     ) -> Result<()> {
-        let url = format!("{}/api/projects/{}/secrets/{}", self.base_url, project_id, env_name);
+        let url = format!(
+            "{}/api/projects/{}/configurations/{}/parameters",
+            self.base_url, project_id, env_name
+        );
 
         let response = self
             .client
@@ -284,7 +287,10 @@ impl ApiClient {
         project_id: Uuid,
         env_name: &str,
     ) -> Result<HashMap<String, String>> {
-        let url = format!("{}/api/projects/{}/secrets/{}", self.base_url, project_id, env_name);
+        let url = format!(
+            "{}/api/projects/{}/configurations/{}/parameters",
+            self.base_url, project_id, env_name
+        );
 
         let response = self
             .client
@@ -321,7 +327,7 @@ impl ApiClient {
     ) -> Result<()> {
         // Используем path параметр для ключа
         let url = format!(
-            "{}/api/projects/{}/secrets/{}/{}",
+            "{}/api/projects/{}/configurations/{}/parameters/{}",
             self.base_url, project_id, env_name, urlencoding::encode(key)
         );
 

@@ -17,8 +17,7 @@
 - **Шифрование:** AES-GCM для секретов, Argon2 для паролей
 
 ### Статус проекта
-- ✅ **Этапы 0–3: MVP готов** (CLI, API, Web Dashboard)
-- ⏳ **Этапы 4–6: в планах** (RBAC, команды, коллаборация, аудит, webhooks, production-ready)
+- MVP готов (CLI, API, Web Dashboard)
 
 ## Архитектурные принципы
 
@@ -271,12 +270,12 @@ pub async fn create_project(
 
 ### Режимы работы
 
-- **Server mode:** Если установлены `CFGY_API_TOKEN` и `CFGY_SERVER_URL`
-- **Local mode:** Иначе, работа с `.cfgy.yaml`
+- **Server mode:** Если установлены `CFGY_TOKEN` и `CFGY_SERVER_URL`
+- **Local mode:** Иначе, работа с `cfgy.yaml`
 
 ### Конфигурация проекта
 
-- Файл `.cfgy.yaml` в корне проекта
+- Файл `cfgy.yaml` в корне проекта
 - Содержит: `project`, `configuration`
 - Загрузка через `ProjectConfig::load()`
 
@@ -380,9 +379,9 @@ pub async fn create_project(
 
 ### CLI
 
-- Конфигурация проекта в `.cfgy.yaml`
-- Переменные окружения: `CFGY_API_TOKEN`, `CFGY_SERVER_URL`
-- Загрузка через `AppConfig::load()`
+- Конфигурация проекта в `cfgy.yaml`
+- Подключение к серверу: переменные окружения `CFGY_TOKEN`, `CFGY_SERVER_URL` или центральный конфиг `~/.cfgy/config.yaml` (env переопределяет файл)
+- Загрузка через `AppConfig::load()` (сначала читается ~/.cfgy/config.yaml, затем переопределение из env)
 
 ## Правила работы с Taskfile
 
@@ -436,6 +435,5 @@ pub async fn create_project(
 
 - `.github/copilot-instructions.md` - подробные инструкции для Copilot
 - `design.md` - архитектурные решения
-- `plan.md` - план развития проекта
 - `.cursor/rules/design_system_rules.mdc` - правила дизайн-системы для фронтенда
 - `README.md` - общая документация проекта

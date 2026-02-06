@@ -16,7 +16,7 @@ pub enum Commands {
         #[arg(short, long)]
         project: Option<String>,
     },
-    /// Использовать configuration по умолчанию для текущего проекта (записывается в .cfgy.yaml)
+    /// Использовать configuration по умолчанию для текущего проекта (записывается в cfgy.yaml)
     Use {
         /// Имя configuration (например: dev, staging, prod)
         configuration: String,
@@ -27,7 +27,7 @@ pub enum Commands {
         key: String,
         /// Значение конфигурации
         value: String,
-        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        /// Configuration (если не указана — берётся из cfgy.yaml)
         #[arg(short, long)]
         configuration: Option<String>,
     },
@@ -35,7 +35,7 @@ pub enum Commands {
     Get {
         /// Ключ конфигурации
         key: String,
-        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        /// Configuration (если не указана — берётся из cfgy.yaml)
         #[arg(short, long)]
         configuration: Option<String>,
         /// Формат вывода (json, yaml, env)
@@ -44,7 +44,7 @@ pub enum Commands {
     },
     /// Список всех конфигов
     List {
-        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        /// Configuration (если не указана — берётся из cfgy.yaml)
         #[arg(short, long)]
         configuration: Option<String>,
         /// Формат вывода (json, yaml, env)
@@ -55,7 +55,7 @@ pub enum Commands {
     Delete {
         /// Ключ конфигурации
         key: String,
-        /// Configuration (если не указана — берётся из .cfgy.yaml)
+        /// Configuration (если не указана — берётся из cfgy.yaml)
         #[arg(short, long)]
         configuration: Option<String>,
     },
@@ -75,6 +75,12 @@ pub enum Commands {
         /// Действие
         #[command(subcommand)]
         action: TokenAction,
+    },
+    /// Центральный конфиг ~/.cfgy/config.yaml (подключение к серверу)
+    Config {
+        /// Действие
+        #[command(subcommand)]
+        action: ConfigAction,
     },
     /// Генерация секретных ключей для сервера
     GenerateSecrets {
@@ -104,4 +110,12 @@ pub enum ProjectsAction {
 pub enum TokenAction {
     /// Показать установленный токен
     List,
+}
+
+#[derive(Subcommand)]
+pub enum ConfigAction {
+    /// Создать или перезаписать ~/.cfgy/config.yaml (интерактивный ввод server_url и token)
+    Init,
+    /// Показать текущие значения (server_url, источник токена, токен замаскирован)
+    Show,
 }
