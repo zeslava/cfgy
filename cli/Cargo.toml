@@ -12,6 +12,7 @@ anyhow.workspace = true
 
 # CLI
 clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"
 
 # HTTP client (default-features = false — меньше зависимостей)
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

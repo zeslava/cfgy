@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use clap_complete::aot::Shell;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -101,6 +102,26 @@ pub enum Commands {
         /// Формат вывода (env, shell)
         #[arg(short, long, default_value = "env")]
         format: String,
+    },
+    /// Скрипты автодополнения (generate в stdout или install в стандартные каталоги)
+    Completions {
+        #[command(subcommand)]
+        action: CompletionsAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CompletionsAction {
+    /// Сгенерировать скрипт в stdout
+    Generate {
+        /// Шелл: bash, zsh, fish, powershell, elvish
+        shell: Shell,
+    },
+    /// Установить скрипт в стандартную директорию (без --shell — bash, zsh, fish)
+    Install {
+        /// Установить только для указанного шелла
+        #[arg(long)]
+        shell: Option<Shell>,
     },
 }
 

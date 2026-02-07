@@ -6,13 +6,16 @@ mod formats;
 mod storage;
 
 use anyhow::{Context, Result};
+use clap::CommandFactory;
 use clap::Parser;
+use clap_complete::Generator;
+use clap_complete::aot;
 use client::ApiClient;
-use commands::{Cli, Commands, ConfigAction, ProjectsAction, TokenAction};
+use commands::{Cli, Commands, CompletionsAction, ConfigAction, ProjectsAction, TokenAction};
 use config::AppConfig;
 use formats::OutputFormat;
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use storage::ProjectConfig;
 
@@ -36,7 +39,10 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { project, configuration } => init_project(project, configuration).await,
+        Commands::Init {
+            project,
+            configuration,
+        } => init_project(project, configuration).await,
         Commands::Use { configuration } => use_configuration(configuration).await,
         Commands::Set {
             key,
@@ -86,7 +92,78 @@ async fn main() -> Result<()> {
         Commands::Token { action } => handle_token(action, &app_config).await,
         Commands::Config { action } => handle_config(action, &app_config).await,
         Commands::GenerateSecrets { format } => generate_secrets(format).await,
+        Commands::Completions { action } => match action {
+            CompletionsAction::Generate { shell } => {
+                let mut cmd = Cli::command();
+                aot::generate(shell, &mut cmd, "cfgy", &mut std::io::stdout());
+                Ok(())
+            }
+            CompletionsAction::Install { shell } => install_completions(shell),
+        },
     }
+}
+
+/// Шеллы по умолчанию для `completions install` без `--shell`
+const DEFAULT_INSTALL_SHELLS: [aot::Shell; 3] =
+    [aot::Shell::Bash, aot::Shell::Zsh, aot::Shell::Fish];
+
+/// Путь установки и имя файла для скрипта автодополнения по шеллу и XDG-базе.
+fn completion_install_path(
+    shell: aot::Shell,
+    data_dir: &Path,
+    config_dir: &Path,
+) -> (PathBuf, String) {
+    let (dir, filename) = match shell {
+        aot::Shell::Bash => (
+            data_dir.join("bash-completion/completions"),
+            shell.file_name("cfgy"),
+        ),
+        aot::Shell::Zsh => (data_dir.join("zsh/site-functions"), "_cfgy".to_string()),
+        aot::Shell::Fish => (config_dir.join("fish/completions"), shell.file_name("cfgy")),
+        aot::Shell::PowerShell => (config_dir.join("powershell"), shell.file_name("cfgy")),
+        aot::Shell::Elvish => (config_dir.join("elvish"), shell.file_name("cfgy")),
+        _ => (
+            data_dir.join("bash-completion/completions"),
+            shell.file_name("cfgy"),
+        ),
+    };
+    (dir, filename)
+}
+
+/// Установить скрипты автодополнения в стандартные XDG-директории.
+fn install_completions(shell_filter: Option<aot::Shell>) -> Result<()> {
+    let home = std::env::var("HOME").context("HOME не задан")?;
+    let data_dir =
+        std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| format!("{home}/.local/share"));
+    let config_dir = std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{home}/.config"));
+    let data_dir = PathBuf::from(&data_dir);
+    let config_dir = PathBuf::from(&config_dir);
+
+    let shells: Vec<aot::Shell> = shell_filter
+        .map(|s| vec![s])
+        .unwrap_or_else(|| DEFAULT_INSTALL_SHELLS.to_vec());
+
+    let mut zsh_installed = false;
+    for shell in &shells {
+        let (dir, filename) = completion_install_path(*shell, &data_dir, &config_dir);
+        let path = dir.join(&filename);
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("Создание директории {}", dir.display()))?;
+        let mut buf = Vec::new();
+        let mut cmd = Cli::command();
+        aot::generate(*shell, &mut cmd, "cfgy", &mut buf);
+        std::fs::write(&path, buf).with_context(|| format!("Запись файла {}", path.display()))?;
+        println!("Установлено: {}", path.display());
+        if matches!(shell, aot::Shell::Zsh) {
+            zsh_installed = true;
+        }
+    }
+    if zsh_installed {
+        println!(
+            "\nДля Zsh добавьте в ~/.zshrc (если ещё нет):\n  fpath=(~/.local/share/zsh/site-functions $fpath)\n  autoload -Uz compinit && compinit"
+        );
+    }
+    Ok(())
 }
 
 async fn init_project(project_name: Option<String>, configuration: Option<String>) -> Result<()> {
