@@ -66,8 +66,8 @@ pub enum Commands {
         /// Configuration (если не указана — берётся из cfgy.yaml)
         #[arg(short, long)]
         configuration: Option<String>,
-        /// Записать в файл вместо stdout (например: .env)
-        #[arg(short, long)]
+        /// Записать в файл вместо stdout (без значения — в .env, иначе в указанный файл)
+        #[arg(short, long, default_missing_value = ".env")]
         output: Option<PathBuf>,
     },
     /// Удалить конфиг

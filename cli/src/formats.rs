@@ -46,7 +46,8 @@ impl OutputFormat {
                 .iter()
                 .map(|(k, v)| format!("{}={}", k, escape_env_value(v)))
                 .collect::<Vec<_>>()
-                .join("\n")),
+                .join("\n")
+                + "\n"),
         }
     }
 }
