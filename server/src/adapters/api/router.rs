@@ -1,12 +1,12 @@
 use axum::{
     Router,
     body::Body,
-    http::{Method, StatusCode, header, HeaderValue},
+    http::{HeaderValue, Method, StatusCode, header},
     response::Response,
     routing::{delete, get, patch, post, put},
 };
 use tower_http::{
-    cors::{Any, CorsLayer, AllowOrigin},
+    cors::{AllowOrigin, Any, CorsLayer},
     services::ServeDir,
     set_header::SetResponseHeaderLayer,
 };

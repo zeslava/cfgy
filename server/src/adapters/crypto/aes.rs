@@ -1,8 +1,8 @@
-use anyhow::Result;
 use aes_gcm::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Key, Nonce,
+    aead::{Aead, AeadCore, KeyInit, OsRng},
 };
+use anyhow::Result;
 use async_trait::async_trait;
 use ring::digest;
 
@@ -64,8 +64,12 @@ impl CryptoService for AesCryptoService {
         result.extend_from_slice(nonce.as_ref());
         result.extend_from_slice(&ciphertext);
 
-        tracing::debug!("Зашифровано данных: размер plaintext={}, размер результата={}, nonce={:?}", 
-            plaintext.len(), result.len(), nonce.as_ref() as &[u8]);
+        tracing::debug!(
+            "Зашифровано данных: размер plaintext={}, размер результата={}, nonce={:?}",
+            plaintext.len(),
+            result.len(),
+            nonce.as_ref() as &[u8]
+        );
 
         Ok(result)
     }
@@ -73,8 +77,16 @@ impl CryptoService for AesCryptoService {
     /// Расшифровать данные
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<String> {
         if ciphertext.len() < NONCE_SIZE {
-            tracing::error!("Данные слишком короткие для расшифровки: {} байт (требуется минимум {} байт)", ciphertext.len(), NONCE_SIZE);
-            anyhow::bail!("Данные слишком короткие для расшифровки: {} байт (требуется минимум {} байт)", ciphertext.len(), NONCE_SIZE);
+            tracing::error!(
+                "Данные слишком короткие для расшифровки: {} байт (требуется минимум {} байт)",
+                ciphertext.len(),
+                NONCE_SIZE
+            );
+            anyhow::bail!(
+                "Данные слишком короткие для расшифровки: {} байт (требуется минимум {} байт)",
+                ciphertext.len(),
+                NONCE_SIZE
+            );
         }
 
         // Извлечь nonce и ciphertext
@@ -93,11 +105,9 @@ impl CryptoService for AesCryptoService {
                 anyhow::anyhow!("Ошибка расшифровки: {} (возможно, изменился master key или данные повреждены)", e)
             })?;
 
-        String::from_utf8(plaintext)
-            .map_err(|e| {
-                tracing::error!("Ошибка преобразования расшифрованных данных в UTF-8: {}", e);
-                anyhow::anyhow!("Ошибка преобразования в UTF-8: {}", e)
-            })
+        String::from_utf8(plaintext).map_err(|e| {
+            tracing::error!("Ошибка преобразования расшифрованных данных в UTF-8: {}", e);
+            anyhow::anyhow!("Ошибка преобразования в UTF-8: {}", e)
+        })
     }
 }
-

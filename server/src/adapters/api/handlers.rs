@@ -1,17 +1,17 @@
-use std::error::Error;
-use std::path::PathBuf;
 use axum::{
+    Json,
     body::Body,
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
-    Json,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use std::collections::HashMap;
+use std::error::Error;
+use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
-use sqlx::PgPool;
 
 use crate::adapters::api::auth::extract_user;
 use crate::application::{
@@ -242,7 +242,10 @@ fn add_ca_certs_from_pem(
     const END: &[u8] = b"-----END CERTIFICATE-----";
     let mut builder = builder;
     let mut pos = 0;
-    while let Some(start) = pem_bytes[pos..].windows(BEGIN.len()).position(|w| w == BEGIN) {
+    while let Some(start) = pem_bytes[pos..]
+        .windows(BEGIN.len())
+        .position(|w| w == BEGIN)
+    {
         let start = pos + start;
         let after_begin = start + BEGIN.len();
         let end_pos = pem_bytes[after_begin..]
@@ -251,8 +254,8 @@ fn add_ca_certs_from_pem(
             .map(|i| after_begin + i + END.len())
             .ok_or_else(|| "PEM: не найден -----END CERTIFICATE-----".to_string())?;
         let block = &pem_bytes[start..end_pos];
-        let cert = reqwest::Certificate::from_pem(block)
-            .map_err(|e| format!("PEM сертификат: {}", e))?;
+        let cert =
+            reqwest::Certificate::from_pem(block).map_err(|e| format!("PEM сертификат: {}", e))?;
         builder = builder.add_root_certificate(cert);
         pos = end_pos;
     }
@@ -279,7 +282,10 @@ fn build_zid_http_client(zid: &ZidConfig) -> reqwest::Client {
 fn override_base_url(base: &str, discovery_url: &str) -> String {
     let path = if let Some((_, rest)) = discovery_url.split_once("://") {
         let from_slash = rest.find('/').map(|i| &rest[i..]).unwrap_or("/");
-        let path_only = from_slash.split_once('?').map(|(p, _)| p).unwrap_or(from_slash);
+        let path_only = from_slash
+            .split_once('?')
+            .map(|(p, _)| p)
+            .unwrap_or(from_slash);
         path_only
     } else {
         discovery_url
@@ -296,7 +302,8 @@ async fn get_zid_endpoints(
     client: &reqwest::Client,
 ) -> (String, String, String) {
     let base = discovery_base.trim_end_matches('/');
-    let base = if base.is_empty() || (!base.starts_with("http://") && !base.starts_with("https://")) {
+    let base = if base.is_empty() || (!base.starts_with("http://") && !base.starts_with("https://"))
+    {
         "http://localhost:5555"
     } else {
         base
@@ -427,7 +434,9 @@ pub async fn zid_login(Query(q): Query<ZidLoginQuery>) -> impl IntoResponse {
 
     // Редирект в браузере — всегда по публичному issuer (доступен с клиента пользователя)
     let issuer_base = config.zid.issuer.trim_end_matches('/');
-    let issuer_base = if issuer_base.is_empty() || (!issuer_base.starts_with("http://") && !issuer_base.starts_with("https://")) {
+    let issuer_base = if issuer_base.is_empty()
+        || (!issuer_base.starts_with("http://") && !issuer_base.starts_with("https://"))
+    {
         "http://localhost:5555"
     } else {
         issuer_base
@@ -499,8 +508,14 @@ fn zid_callback_error_redirect(
         secure_flag = secure_flag
     );
     let mut headers = HeaderMap::new();
-    headers.append(header::SET_COOKIE, HeaderValue::from_str(&clear_state).unwrap());
-    headers.append(header::SET_COOKIE, HeaderValue::from_str(&clear_next).unwrap());
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&clear_state).unwrap(),
+    );
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&clear_next).unwrap(),
+    );
     let login_url = format!("/login?error={}", urlencoding::encode(message));
     (headers, Redirect::temporary(&login_url))
 }
@@ -519,13 +534,13 @@ pub async fn zid_callback(
     let secure = config.zid.redirect_uri.starts_with("https://");
 
     if let Some(ref err) = q.error {
-        let mut msg = q
-            .error_description
-            .as_deref()
-            .unwrap_or(err)
-            .to_string();
+        let mut msg = q.error_description.as_deref().unwrap_or(err).to_string();
         // Подсказка при типичной ошибке: redirect_uri не совпадает с настройками в ZID
-        if err == "invalid_request" && q.error_description.as_deref().map_or(true, |d| !d.contains("redirect_uri")) {
+        if err == "invalid_request"
+            && q.error_description
+                .as_deref()
+                .map_or(true, |d| !d.contains("redirect_uri"))
+        {
             msg.push_str(" (проверьте: ZID_REDIRECT_URI на сервере CFGY и список redirect_uri в настройках клиента ZID должны совпадать побайтово)");
         }
         return zid_callback_error_redirect(&msg, secure).into_response();
@@ -534,14 +549,16 @@ pub async fn zid_callback(
     let code = match &q.code {
         Some(c) if !c.is_empty() => c.clone(),
         _ => {
-            return zid_callback_error_redirect("Отсутствует параметр code", secure).into_response();
+            return zid_callback_error_redirect("Отсутствует параметр code", secure)
+                .into_response();
         }
     };
 
     let state_from_query = match &q.state {
         Some(s) if !s.is_empty() => s.clone(),
         _ => {
-            return zid_callback_error_redirect("Отсутствует параметр state", secure).into_response();
+            return zid_callback_error_redirect("Отсутствует параметр state", secure)
+                .into_response();
         }
     };
 
@@ -552,7 +569,8 @@ pub async fn zid_callback(
     let state_from_cookie = match get_cookie_value(cookie_header, ZID_STATE_COOKIE_NAME) {
         Some(s) => s,
         None => {
-            return zid_callback_error_redirect("Неверный или истёкший state", secure).into_response();
+            return zid_callback_error_redirect("Неверный или истёкший state", secure)
+                .into_response();
         }
     };
     if state_from_cookie != state_from_query {
@@ -603,10 +621,7 @@ pub async fn zid_callback(
 
     if !token_resp.status().is_success() {
         let text = token_resp.text().await.unwrap_or_default();
-        return zid_callback_error_redirect(
-            &format!("ZID отклонил обмен кода: {}", text),
-            secure,
-        )
+        return zid_callback_error_redirect(&format!("ZID отклонил обмен кода: {}", text), secure)
             .into_response();
     }
 
@@ -617,7 +632,7 @@ pub async fn zid_callback(
                 &format!("Не удалось разобрать ответ ZID: {}", e),
                 secure,
             )
-                .into_response();
+            .into_response();
         }
     };
 
@@ -649,7 +664,12 @@ pub async fn zid_callback(
                 (StatusCode::INTERNAL_SERVER_ERROR, String::new())
             }
         };
-        tracing::debug!("ZID userinfo (Bearer access_token): url={}, status={}, body={}", userinfo_endpoint, status, body);
+        tracing::debug!(
+            "ZID userinfo (Bearer access_token): url={}, status={}, body={}",
+            userinfo_endpoint,
+            status,
+            body
+        );
         if status.is_success() {
             (status, body)
         } else if status.as_u16() == 401 && id_token.as_deref().map_or(false, |t| !t.is_empty()) {
@@ -657,7 +677,10 @@ pub async fn zid_callback(
             tracing::debug!("ZID userinfo 401, повтор с Bearer id_token");
             let resp2 = client
                 .get(&userinfo_endpoint)
-                .header("Authorization", format!("Bearer {}", id_token.as_deref().unwrap_or_default()))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", id_token.as_deref().unwrap_or_default()),
+                )
                 .send()
                 .await;
             let (status2, body2) = match resp2 {
@@ -667,12 +690,20 @@ pub async fn zid_callback(
                     (status, body)
                 }
             };
-            tracing::debug!("ZID userinfo (Bearer id_token): status={}, body={}", status2, body2);
+            tracing::debug!(
+                "ZID userinfo (Bearer id_token): status={}, body={}",
+                status2,
+                body2
+            );
             if status2.is_success() {
                 (status2, body2)
             } else if status2.as_u16() == 401 {
                 // Оба Bearer не подошли — пробуем access_token в query (?access_token=...)
-                let url_with_token = format!("{}?access_token={}", userinfo_endpoint, urlencoding::encode(&access_token));
+                let url_with_token = format!(
+                    "{}?access_token={}",
+                    userinfo_endpoint,
+                    urlencoding::encode(&access_token)
+                );
                 tracing::debug!("ZID userinfo 401, повтор с query access_token");
                 let resp3 = client.get(&url_with_token).send().await;
                 let (status3, body3) = match resp3 {
@@ -682,7 +713,11 @@ pub async fn zid_callback(
                         (status2, body2)
                     }
                 };
-                tracing::debug!("ZID userinfo (?access_token): status={}, body={}", status3, body3);
+                tracing::debug!(
+                    "ZID userinfo (?access_token): status={}, body={}",
+                    status3,
+                    body3
+                );
                 (status3, body3)
             } else {
                 (status2, body2)
@@ -764,17 +799,10 @@ pub async fn zid_callback(
         }
     });
 
-    let maybe_user_id = match state
-        .external_identity_repo
-        .find_user_id("zid", &sub)
-        .await
-    {
+    let maybe_user_id = match state.external_identity_repo.find_user_id("zid", &sub).await {
         Ok(v) => v,
         Err(e) => {
-            return zid_callback_error_redirect(
-                &format!("Ошибка поиска привязки: {}", e),
-                secure,
-            )
+            return zid_callback_error_redirect(&format!("Ошибка поиска привязки: {}", e), secure)
                 .into_response();
         }
     };
@@ -789,13 +817,17 @@ pub async fn zid_callback(
                     &format!("Ошибка поиска пользователя: {}", e),
                     secure,
                 )
-                    .into_response();
+                .into_response();
             }
         };
         let user = if let Some(u) = existing {
             u
         } else {
-            match state.user_repo.create_sso_user(&email_to_save, &username).await {
+            match state
+                .user_repo
+                .create_sso_user(&email_to_save, &username)
+                .await
+            {
                 Ok(u) => u,
                 Err(e) => {
                     return zid_callback_error_redirect(
@@ -826,21 +858,15 @@ pub async fn zid_callback(
         .update_profile(user_id, &email_to_save, &username)
         .await
     {
-        return zid_callback_error_redirect(
-            &format!("Ошибка обновления профиля: {}", e),
-            secure,
-        )
-        .into_response();
+        return zid_callback_error_redirect(&format!("Ошибка обновления профиля: {}", e), secure)
+            .into_response();
     }
 
     let session_token = match state.auth_service.create_session_token(user_id) {
         Ok(t) => t,
         Err(e) => {
-            return zid_callback_error_redirect(
-                &format!("Ошибка создания сессии: {}", e),
-                secure,
-            )
-            .into_response();
+            return zid_callback_error_redirect(&format!("Ошибка создания сессии: {}", e), secure)
+                .into_response();
         }
     };
 
@@ -900,7 +926,11 @@ pub async fn zid_callback(
         }
     };
     let redirect_url = if base.is_empty() {
-        format!("{}#session_token={}", next, urlencoding::encode(&session_token))
+        format!(
+            "{}#session_token={}",
+            next,
+            urlencoding::encode(&session_token)
+        )
     } else {
         let path = next.strip_prefix('/').unwrap_or(next.as_str());
         format!(
@@ -926,9 +956,18 @@ fn parse_claims_from_id_token(id_token: &str) -> Option<IdTokenClaims> {
         .decode(payload_b64)
         .ok()?;
     let payload: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
-    let sub = payload.get("sub").and_then(|v| v.as_str()).map(String::from)?;
-    let email = payload.get("email").and_then(|v| v.as_str()).map(String::from);
-    let name = payload.get("name").and_then(|v| v.as_str()).map(String::from);
+    let sub = payload
+        .get("sub")
+        .and_then(|v| v.as_str())
+        .map(String::from)?;
+    let email = payload
+        .get("email")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let name = payload
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let preferred_username = payload
         .get("preferred_username")
         .and_then(|v| v.as_str())
@@ -976,7 +1015,11 @@ pub async fn session(headers: HeaderMap) -> impl IntoResponse {
     let token = get_cookie_value(cookie_header, CFGY_SESSION_COOKIE_NAME);
 
     let mut res = match token {
-        Some(t) => (StatusCode::OK, Json(serde_json::json!({ "session_token": t }))).into_response(),
+        Some(t) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "session_token": t })),
+        )
+            .into_response(),
         None => (StatusCode::NO_CONTENT, ()).into_response(),
     };
     res.headers_mut().insert(

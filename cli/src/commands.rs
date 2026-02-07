@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "cfgy")]
@@ -15,6 +16,12 @@ pub enum Commands {
         /// Имя проекта
         #[arg(short, long)]
         project: Option<String>,
+    },
+    /// Запустить команду с переменными окружения из конфигов
+    Run {
+        /// Команда для выполнения
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
     },
     /// Использовать configuration по умолчанию для текущего проекта (записывается в cfgy.yaml)
     Use {
@@ -51,6 +58,15 @@ pub enum Commands {
         #[arg(short, long, default_value = "env")]
         format: String,
     },
+    /// Вывод параметров в формате .env (для дампа в файл или docker --env-file)
+    Env {
+        /// Configuration (если не указана — берётся из cfgy.yaml)
+        #[arg(short, long)]
+        configuration: Option<String>,
+        /// Записать в файл вместо stdout (например: .env)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// Удалить конфиг
     Delete {
         /// Ключ конфигурации
@@ -59,12 +75,7 @@ pub enum Commands {
         #[arg(short, long)]
         configuration: Option<String>,
     },
-    /// Запустить команду с переменными окружения из конфигов
-    Run {
-        /// Команда для выполнения
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        command: Vec<String>,
-    },
+    /// Управление проектами на сервере (список, создание, удаление и т.д.)
     Projects {
         /// Действие
         #[command(subcommand)]

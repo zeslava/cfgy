@@ -7,8 +7,8 @@ use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::adapters::api::{create_router, get_index_path};
 use crate::adapters::api::handlers::AppState;
+use crate::adapters::api::{create_router, get_index_path};
 use crate::adapters::crypto::AesCryptoService;
 use crate::adapters::persistence::PostgresUserRepository;
 use crate::application::{
@@ -20,7 +20,7 @@ use crate::ports::{ExternalIdentityRepository, UserRepository};
 async fn main() -> anyhow::Result<()> {
     use std::io::Write;
     eprintln!("[1/7] Инициализация логирования...");
-    
+
     // Настройка формата логирования
     let log_format = std::env::var("LOG_FORMAT").unwrap_or_default();
     if log_format == "json" {

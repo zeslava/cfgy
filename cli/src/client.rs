@@ -53,22 +53,15 @@ impl ApiClient {
     /// Получить заголовки для запросов
     fn headers(&self) -> Result<reqwest::header::HeaderMap> {
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(
-            reqwest::header::CONTENT_TYPE,
-            "application/json".parse()?,
-        );
+        headers.insert(reqwest::header::CONTENT_TYPE, "application/json".parse()?);
 
         if let Some(token) = &self.token {
             let auth_value = format!("Bearer {}", token);
-            headers.insert(
-                reqwest::header::AUTHORIZATION,
-                auth_value.parse()?,
-            );
+            headers.insert(reqwest::header::AUTHORIZATION, auth_value.parse()?);
         }
 
         Ok(headers)
     }
-
 
     /// Создать проект
     pub async fn create_project(
@@ -96,12 +89,9 @@ impl ApiClient {
                 .context("Не удалось распарсить ответ создания проекта")?;
             Ok(project)
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка создания проекта: {}", error.error);
         }
     }
@@ -126,12 +116,9 @@ impl ApiClient {
                 .context("Не удалось распарсить ответ списка проектов")?;
             Ok(projects)
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка получения списка проектов: {}", error.error);
         }
     }
@@ -157,12 +144,9 @@ impl ApiClient {
                 .context("Не удалось распарсить ответ получения проекта")?;
             Ok(project)
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка получения проекта: {}", error.error);
         }
     }
@@ -210,12 +194,9 @@ impl ApiClient {
                 .context("Не удалось распарсить ответ обновления проекта")?;
             Ok(project)
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка обновления проекта: {}", error.error);
         }
     }
@@ -236,12 +217,9 @@ impl ApiClient {
         if status.is_success() || status == reqwest::StatusCode::NO_CONTENT {
             Ok(())
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка удаления проекта: {}", error.error);
         }
     }
@@ -271,12 +249,9 @@ impl ApiClient {
         if status.is_success() {
             Ok(())
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка установки секретов: {}", error.error);
         }
     }
@@ -308,27 +283,22 @@ impl ApiClient {
                 .context("Не удалось распарсить ответ получения секретов")?;
             Ok(secrets)
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка получения секретов: {}", error.error);
         }
     }
 
     /// Удалить секрет для окружения
-    pub async fn delete_secret(
-        &self,
-        project_id: Uuid,
-        env_name: &str,
-        key: &str,
-    ) -> Result<()> {
+    pub async fn delete_secret(&self, project_id: Uuid, env_name: &str, key: &str) -> Result<()> {
         // Используем path параметр для ключа
         let url = format!(
             "{}/api/projects/{}/configurations/{}/parameters/{}",
-            self.base_url, project_id, env_name, urlencoding::encode(key)
+            self.base_url,
+            project_id,
+            env_name,
+            urlencoding::encode(key)
         );
 
         let response = self
@@ -343,15 +313,10 @@ impl ApiClient {
         if status.is_success() || status == reqwest::StatusCode::NO_CONTENT {
             Ok(())
         } else {
-            let error: ErrorResponse = response
-                .json()
-                .await
-                .unwrap_or_else(|_| ErrorResponse {
-                    error: format!("HTTP {}", status),
-                });
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
             anyhow::bail!("Ошибка удаления секрета: {}", error.error);
         }
     }
-
 }
-

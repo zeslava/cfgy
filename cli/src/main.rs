@@ -12,6 +12,7 @@ use commands::{Cli, Commands, ConfigAction, ProjectsAction, TokenAction};
 use config::AppConfig;
 use formats::OutputFormat;
 use std::io::{self, Write};
+use std::path::Path;
 use std::process::Command;
 use storage::ProjectConfig;
 
@@ -59,6 +60,13 @@ async fn main() -> Result<()> {
         } => {
             app_config = ensure_server_config(app_config)?;
             list_configs(configuration, format, &app_config).await
+        }
+        Commands::Env {
+            configuration,
+            output,
+        } => {
+            app_config = ensure_server_config(app_config)?;
+            env_output(configuration, output.as_deref(), &app_config).await
         }
         Commands::Delete { key, configuration } => {
             app_config = ensure_server_config(app_config)?;
@@ -212,6 +220,37 @@ async fn list_configs(
     let output_format = OutputFormat::from_str(&format)?;
     let output = output_format.output(&configs)?;
     println!("{}", output);
+    Ok(())
+}
+
+/// Вывод параметров в формате .env (для дампа в файл или docker --env-file).
+async fn env_output(
+    configuration: Option<String>,
+    output_path: Option<&Path>,
+    app_config: &AppConfig,
+) -> Result<()> {
+    let config = ProjectConfig::load()?;
+    let configuration = configuration.unwrap_or_else(|| config.configuration.clone());
+
+    let token = app_config.require_api_token()?;
+    let server_url = app_config.require_server_url()?;
+
+    if config.project.is_empty() {
+        anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
+    }
+
+    let client = ApiClient::new(server_url.clone(), Some(token.clone()));
+    let project = client.find_project_by_name(&config.project).await?;
+    let configs = client.get_secrets(project.id, &configuration).await?;
+
+    let output = OutputFormat::Env.output(&configs)?;
+
+    if let Some(path) = output_path {
+        std::fs::write(path, output)
+            .with_context(|| format!("Не удалось записать файл: {}", path.display()))?;
+    } else {
+        print!("{}", output);
+    }
     Ok(())
 }
 
@@ -622,7 +661,11 @@ async fn config_show(app_config: &AppConfig) -> Result<()> {
     println!("server_url: {}", app_config.server_url);
     if let Some(token) = app_config.api_token.as_ref() {
         let display_len = token.len().min(10);
-        println!("token: {}... ({} символов)", &token[..display_len], token.len());
+        println!(
+            "token: {}... ({} символов)",
+            &token[..display_len],
+            token.len()
+        );
         let source = match app_config.token_source {
             Some("env") => "переменная окружения CFGY_TOKEN",
             Some("file") => "файл ~/.cfgy/config.yaml",
@@ -676,8 +719,14 @@ async fn generate_secrets(format: String) -> Result<()> {
 
     println!();
     println!("✓ Секреты сгенерированы успешно");
-    println!("  Master Key: {} символов (рекомендуется минимум 32)", master_key.len());
-    println!("  JWT Secret: {} символов (рекомендуется минимум 16)", jwt_secret.len());
+    println!(
+        "  Master Key: {} символов (рекомендуется минимум 32)",
+        master_key.len()
+    );
+    println!(
+        "  JWT Secret: {} символов (рекомендуется минимум 16)",
+        jwt_secret.len()
+    );
 
     Ok(())
 }

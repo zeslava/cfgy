@@ -14,6 +14,11 @@ tasks:
     cmds:
       - cargo build --release --bin cfgy-server
 
+  cli:
+    deps:
+      - build-cli
+    cmd: ./target/release/cfgy-cli
+
   build-cli:
     desc: Собрать cfgy CLI (release)
     cmds:

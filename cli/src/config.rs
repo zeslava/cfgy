@@ -37,7 +37,9 @@ pub struct AppConfig {
 /// Путь к файлу конфигурации в домашней директории (~/.cfgy/config.yaml).
 /// Только Unix-like (Linux, FreeBSD, macOS).
 fn home_config_path() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from).map(|h| h.join(".cfgy").join("config.yaml"))
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|h| h.join(".cfgy").join("config.yaml"))
 }
 
 /// Путь к центральному конфигу (для вывода в cfgy config show).
@@ -111,8 +113,7 @@ impl AppConfig {
 /// Интерактивная настройка: запросить server_url и token, записать в ~/.cfgy/config.yaml.
 /// Создаёт директорию ~/.cfgy при необходимости, выставляет права 0o600 на файл.
 pub fn interactive_setup(current: &AppConfig) -> Result<()> {
-    let path = home_config_path()
-        .ok_or_else(|| anyhow::anyhow!("Переменная HOME не задана"))?;
+    let path = home_config_path().ok_or_else(|| anyhow::anyhow!("Переменная HOME не задана"))?;
 
     println!("Конфиг ~/.cfgy/config.yaml отсутствует или неполный.");
     println!("Введите данные для подключения к серверу CFGY.");

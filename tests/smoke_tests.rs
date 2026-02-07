@@ -69,7 +69,6 @@ struct EnvironmentResponse {
     updated_at: String,
 }
 
-
 /// Тестовый клиент для работы с API
 struct TestClient {
     client: Client,
@@ -83,7 +82,7 @@ impl TestClient {
             .timeout(Duration::from_secs(TIMEOUT_SEC))
             .build()
             .expect("Не удалось создать HTTP клиент");
-        
+
         Self {
             client,
             base_url: base_url.to_string(),
@@ -176,7 +175,11 @@ impl TestClient {
     }
 
     /// Создание проекта
-    async fn create_project(&self, name: &str, description: Option<&str>) -> Result<ProjectResponse> {
+    async fn create_project(
+        &self,
+        name: &str,
+        description: Option<&str>,
+    ) -> Result<ProjectResponse> {
         let url = format!("{}/api/projects", self.base_url);
         let mut request = self.client.post(&url);
 
@@ -252,7 +255,11 @@ impl TestClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Ошибка получения списка проектов ({}): {}", status, error_text);
+            anyhow::bail!(
+                "Ошибка получения списка проектов ({}): {}",
+                status,
+                error_text
+            );
         }
 
         let projects: Vec<ProjectResponse> = response
@@ -324,7 +331,11 @@ impl TestClient {
     }
 
     /// Создание окружения
-    async fn create_environment(&self, project_id: &Uuid, name: &str) -> Result<EnvironmentResponse> {
+    async fn create_environment(
+        &self,
+        project_id: &Uuid,
+        name: &str,
+    ) -> Result<EnvironmentResponse> {
         let url = format!("{}/api/projects/{}/environments", self.base_url, project_id);
         let mut request = self.client.post(&url);
 
@@ -371,7 +382,11 @@ impl TestClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Ошибка получения списка окружений ({}): {}", status, error_text);
+            anyhow::bail!(
+                "Ошибка получения списка окружений ({}): {}",
+                status,
+                error_text
+            );
         }
 
         let environments: Vec<EnvironmentResponse> = response
@@ -383,8 +398,16 @@ impl TestClient {
     }
 
     /// Установка секретов
-    async fn set_secrets(&self, project_id: &Uuid, env_name: &str, secrets: &serde_json::Value) -> Result<()> {
-        let url = format!("{}/api/projects/{}/secrets/{}", self.base_url, project_id, env_name);
+    async fn set_secrets(
+        &self,
+        project_id: &Uuid,
+        env_name: &str,
+        secrets: &serde_json::Value,
+    ) -> Result<()> {
+        let url = format!(
+            "{}/api/projects/{}/secrets/{}",
+            self.base_url, project_id, env_name
+        );
         let mut request = self.client.put(&url);
 
         if let Some(token) = &self.auth_header() {
@@ -408,7 +431,10 @@ impl TestClient {
 
     /// Получение секретов
     async fn get_secrets(&self, project_id: &Uuid, env_name: &str) -> Result<serde_json::Value> {
-        let url = format!("{}/api/projects/{}/secrets/{}", self.base_url, project_id, env_name);
+        let url = format!(
+            "{}/api/projects/{}/secrets/{}",
+            self.base_url, project_id, env_name
+        );
         let mut request = self.client.get(&url);
 
         if let Some(token) = &self.auth_header() {
@@ -437,7 +463,10 @@ impl TestClient {
     /// Удаление секрета
     async fn delete_secret(&self, project_id: &Uuid, env_name: &str, key: &str) -> Result<()> {
         let encoded_key = urlencoding::encode(key);
-        let url = format!("{}/api/projects/{}/secrets/{}/{}", self.base_url, project_id, env_name, encoded_key);
+        let url = format!(
+            "{}/api/projects/{}/secrets/{}/{}",
+            self.base_url, project_id, env_name, encoded_key
+        );
         let mut request = self.client.delete(&url);
 
         if let Some(token) = &self.auth_header() {
@@ -466,7 +495,10 @@ fn test_email() -> String {
 
 /// Генерация уникального имени проекта
 fn test_project_name() -> String {
-    format!("test-project-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap())
+    format!(
+        "test-project-{}",
+        uuid::Uuid::new_v4().to_string().split('-').next().unwrap()
+    )
 }
 
 // ========== ТЕСТЫ ==========
@@ -474,13 +506,13 @@ fn test_project_name() -> String {
 #[tokio::test]
 async fn test_auth_register_and_login() -> Result<()> {
     println!("\n=== Тест: Регистрация и вход ===");
-    
+
     let client = TestClient::new(BASE_URL);
-    
+
     // Проверка доступности сервера
     client.check_server_available().await?;
     println!("✓ Сервер доступен");
-    
+
     let email = test_email();
     let password = "testpass123";
 
@@ -500,13 +532,13 @@ async fn test_auth_register_and_login() -> Result<()> {
 #[tokio::test]
 async fn test_project_crud() -> Result<()> {
     println!("\n=== Тест: CRUD операции с проектами ===");
-    
+
     let mut client = TestClient::new(BASE_URL);
-    
+
     // Проверка доступности сервера
     client.check_server_available().await?;
     println!("✓ Сервер доступен");
-    
+
     let email = test_email();
     let password = "testpass123";
 
@@ -518,11 +550,11 @@ async fn test_project_crud() -> Result<()> {
     // 1. Создание проекта
     let project_name = test_project_name();
     let project_description = "Тестовый проект для проверки CRUD";
-    
+
     let project = client
         .create_project(&project_name, Some(project_description))
         .await?;
-    
+
     assert_eq!(project.name, project_name);
     assert_eq!(project.description.as_deref(), Some(project_description));
     println!("✓ Проект создан: {}", project.id);
@@ -538,16 +570,22 @@ async fn test_project_crud() -> Result<()> {
     // 3. Список проектов
     let projects = client.list_projects().await?;
     assert!(projects.iter().any(|p| p.id == project_id));
-    println!("✓ Проект найден в списке (всего проектов: {})", projects.len());
+    println!(
+        "✓ Проект найден в списке (всего проектов: {})",
+        projects.len()
+    );
 
     // 4. Обновление проекта (только имя)
     let new_name = format!("{}-renamed", project_name);
     let updated_project = client
         .update_project(&project_id, Some(&new_name), None)
         .await?;
-    
+
     assert_eq!(updated_project.name, new_name);
-    assert_eq!(updated_project.description.as_deref(), Some(project_description));
+    assert_eq!(
+        updated_project.description.as_deref(),
+        Some(project_description)
+    );
     println!("✓ Проект обновлен (имя изменено)");
 
     // 5. Обновление проекта (имя и описание)
@@ -556,9 +594,12 @@ async fn test_project_crud() -> Result<()> {
     let updated_project2 = client
         .update_project(&project_id, Some(&new_name2), Some(new_description))
         .await?;
-    
+
     assert_eq!(updated_project2.name, new_name2);
-    assert_eq!(updated_project2.description.as_deref(), Some(new_description));
+    assert_eq!(
+        updated_project2.description.as_deref(),
+        Some(new_description)
+    );
     println!("✓ Проект обновлен (имя и описание изменены)");
 
     // 6. Удаление проекта
@@ -576,13 +617,13 @@ async fn test_project_crud() -> Result<()> {
 #[tokio::test]
 async fn test_environments() -> Result<()> {
     println!("\n=== Тест: Управление окружениями ===");
-    
+
     let mut client = TestClient::new(BASE_URL);
-    
+
     // Проверка доступности сервера
     client.check_server_available().await?;
     println!("✓ Сервер доступен");
-    
+
     let email = test_email();
     let password = "testpass123";
 
@@ -627,13 +668,13 @@ async fn test_environments() -> Result<()> {
 #[tokio::test]
 async fn test_secrets_crud() -> Result<()> {
     println!("\n=== Тест: CRUD операции с секретами ===");
-    
+
     let mut client = TestClient::new(BASE_URL);
-    
+
     // Проверка доступности сервера
     client.check_server_available().await?;
     println!("✓ Сервер доступен");
-    
+
     let email = test_email();
     let password = "testpass123";
 
@@ -644,11 +685,9 @@ async fn test_secrets_crud() -> Result<()> {
 
     // Создание проекта и окружения
     let project_name = test_project_name();
-    let project = client
-        .create_project(&project_name, None)
-        .await?;
+    let project = client.create_project(&project_name, None).await?;
     let project_id = project.id;
-    
+
     let env_name = "development";
     let _env = client.create_environment(&project_id, env_name).await?;
     println!("✓ Проект и окружение созданы");
@@ -665,7 +704,10 @@ async fn test_secrets_crud() -> Result<()> {
 
     // 2. Получение секретов
     let retrieved_secrets = client.get_secrets(&project_id, env_name).await?;
-    assert_eq!(retrieved_secrets["DATABASE_URL"], "postgres://localhost:5432/test");
+    assert_eq!(
+        retrieved_secrets["DATABASE_URL"],
+        "postgres://localhost:5432/test"
+    );
     assert_eq!(retrieved_secrets["API_KEY"], "secret-key-123");
     assert_eq!(retrieved_secrets["DEBUG"], "true");
     println!("✓ Секреты получены и проверены");
@@ -678,19 +720,31 @@ async fn test_secrets_crud() -> Result<()> {
         "NEW_KEY": "new-value"  // новый секрет
     });
 
-    client.set_secrets(&project_id, env_name, &updated_secrets).await?;
-    
+    client
+        .set_secrets(&project_id, env_name, &updated_secrets)
+        .await?;
+
     let retrieved_secrets2 = client.get_secrets(&project_id, env_name).await?;
     assert_eq!(retrieved_secrets2["DEBUG"], "false");
     assert_eq!(retrieved_secrets2["NEW_KEY"], "new-value");
     println!("✓ Секреты обновлены (DEBUG изменен, NEW_KEY добавлен)");
 
     // 4. Удаление секрета
-    client.delete_secret(&project_id, env_name, "NEW_KEY").await?;
-    
+    client
+        .delete_secret(&project_id, env_name, "NEW_KEY")
+        .await?;
+
     let retrieved_secrets3 = client.get_secrets(&project_id, env_name).await?;
-    assert!(!retrieved_secrets3.as_object().unwrap().contains_key("NEW_KEY"));
-    assert_eq!(retrieved_secrets3["DATABASE_URL"], "postgres://localhost:5432/test");
+    assert!(
+        !retrieved_secrets3
+            .as_object()
+            .unwrap()
+            .contains_key("NEW_KEY")
+    );
+    assert_eq!(
+        retrieved_secrets3["DATABASE_URL"],
+        "postgres://localhost:5432/test"
+    );
     println!("✓ Секрет NEW_KEY удален, остальные секреты сохранены");
 
     // Очистка
@@ -703,13 +757,13 @@ async fn test_secrets_crud() -> Result<()> {
 #[tokio::test]
 async fn test_project_update_partial() -> Result<()> {
     println!("\n=== Тест: Частичное обновление проекта ===");
-    
+
     let mut client = TestClient::new(BASE_URL);
-    
+
     // Проверка доступности сервера
     client.check_server_available().await?;
     println!("✓ Сервер доступен");
-    
+
     let email = test_email();
     let password = "testpass123";
 
@@ -732,9 +786,12 @@ async fn test_project_update_partial() -> Result<()> {
     let updated_project = client
         .update_project(&project_id, None, Some(new_description))
         .await?;
-    
+
     assert_eq!(updated_project.name, project_name); // имя не изменилось
-    assert_eq!(updated_project.description.as_deref(), Some(new_description));
+    assert_eq!(
+        updated_project.description.as_deref(),
+        Some(new_description)
+    );
     println!("✓ Обновлено только описание, имя осталось прежним");
 
     // Обновление только имени (описание не меняем)
@@ -742,9 +799,12 @@ async fn test_project_update_partial() -> Result<()> {
     let updated_project2 = client
         .update_project(&project_id, Some(&new_name), None)
         .await?;
-    
+
     assert_eq!(updated_project2.name, new_name); // имя изменилось
-    assert_eq!(updated_project2.description.as_deref(), Some(new_description)); // описание не изменилось
+    assert_eq!(
+        updated_project2.description.as_deref(),
+        Some(new_description)
+    ); // описание не изменилось
     println!("✓ Обновлено только имя, описание осталось прежним");
 
     // Очистка
@@ -757,13 +817,13 @@ async fn test_project_update_partial() -> Result<()> {
 #[tokio::test]
 async fn test_secrets_with_special_characters() -> Result<()> {
     println!("\n=== Тест: Секреты со специальными символами ===");
-    
+
     let mut client = TestClient::new(BASE_URL);
-    
+
     // Проверка доступности сервера
     client.check_server_available().await?;
     println!("✓ Сервер доступен");
-    
+
     let email = test_email();
     let password = "testpass123";
 
@@ -776,7 +836,7 @@ async fn test_secrets_with_special_characters() -> Result<()> {
     let project_name = test_project_name();
     let project = client.create_project(&project_name, None).await?;
     let project_id = project.id;
-    
+
     let env_name = "development";
     let _env = client.create_environment(&project_id, env_name).await?;
 
@@ -793,7 +853,10 @@ async fn test_secrets_with_special_characters() -> Result<()> {
 
     let retrieved = client.get_secrets(&project_id, env_name).await?;
     assert_eq!(retrieved["KEY_WITH_SLASH"], "value/with/slashes");
-    assert_eq!(retrieved["KEY_WITH_SPECIAL"], "value with spaces & symbols!@#");
+    assert_eq!(
+        retrieved["KEY_WITH_SPECIAL"],
+        "value with spaces & symbols!@#"
+    );
     assert_eq!(retrieved["KEY_WITH_EQUALS"], "value=with=equals");
     assert_eq!(retrieved["KEY_WITH_NEWLINE"], "value\nwith\nnewlines");
     println!("✓ Все секреты со специальными символами корректно сохранены и получены");
@@ -803,8 +866,12 @@ async fn test_secrets_with_special_characters() -> Result<()> {
     let secrets_special = json!({
         special_key: "value"
     });
-    client.set_secrets(&project_id, env_name, &secrets_special).await?;
-    client.delete_secret(&project_id, env_name, special_key).await?;
+    client
+        .set_secrets(&project_id, env_name, &secrets_special)
+        .await?;
+    client
+        .delete_secret(&project_id, env_name, special_key)
+        .await?;
     println!("✓ Секрет с специальными символами в ключе удален");
 
     // Очистка
@@ -816,13 +883,13 @@ async fn test_secrets_with_special_characters() -> Result<()> {
 #[tokio::test]
 async fn test_multiple_environments_secrets() -> Result<()> {
     println!("\n=== Тест: Секреты в нескольких окружениях ===");
-    
+
     let mut client = TestClient::new(BASE_URL);
-    
+
     // Проверка доступности сервера
     client.check_server_available().await?;
     println!("✓ Сервер доступен");
-    
+
     let email = test_email();
     let password = "testpass123";
 
@@ -835,9 +902,11 @@ async fn test_multiple_environments_secrets() -> Result<()> {
     let project_name = test_project_name();
     let project = client.create_project(&project_name, None).await?;
     let project_id = project.id;
-    
+
     // Создание двух окружений
-    let _dev_env = client.create_environment(&project_id, "development").await?;
+    let _dev_env = client
+        .create_environment(&project_id, "development")
+        .await?;
     let _prod_env = client.create_environment(&project_id, "production").await?;
 
     // Установка разных секретов для каждого окружения
@@ -851,18 +920,28 @@ async fn test_multiple_environments_secrets() -> Result<()> {
         "DEBUG": "false"
     });
 
-    client.set_secrets(&project_id, "development", &dev_secrets).await?;
-    client.set_secrets(&project_id, "production", &prod_secrets).await?;
+    client
+        .set_secrets(&project_id, "development", &dev_secrets)
+        .await?;
+    client
+        .set_secrets(&project_id, "production", &prod_secrets)
+        .await?;
     println!("✓ Секреты установлены для обоих окружений");
 
     // Проверка изоляции окружений
     let dev_retrieved = client.get_secrets(&project_id, "development").await?;
     let prod_retrieved = client.get_secrets(&project_id, "production").await?;
 
-    assert_eq!(dev_retrieved["DATABASE_URL"], "postgres://localhost:5432/dev_db");
+    assert_eq!(
+        dev_retrieved["DATABASE_URL"],
+        "postgres://localhost:5432/dev_db"
+    );
     assert_eq!(dev_retrieved["DEBUG"], "true");
-    
-    assert_eq!(prod_retrieved["DATABASE_URL"], "postgres://prod-db.example.com:5432/prod_db");
+
+    assert_eq!(
+        prod_retrieved["DATABASE_URL"],
+        "postgres://prod-db.example.com:5432/prod_db"
+    );
     assert_eq!(prod_retrieved["DEBUG"], "false");
 
     println!("✓ Секреты изолированы между окружениями");
@@ -882,4 +961,3 @@ fn main() {
     println!("  3. task run  # Запустить сервер (или вручную с переменными окружения)");
     println!("\nЗапустите тесты командой: cargo test --bin smoke_tests\n");
 }
-

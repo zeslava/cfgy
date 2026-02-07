@@ -73,16 +73,16 @@ impl Config {
     pub fn load() -> Result<Self, String> {
         let config = Config {
             database: DatabaseConfig {
-                url: std::env::var("DATABASE_URL")
-                    .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/cfgy".to_string()),
+                url: std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+                    "postgres://postgres:postgres@localhost:5432/cfgy".to_string()
+                }),
                 max_connections: std::env::var("DATABASE_MAX_CONNECTIONS")
                     .ok()
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(20),
             },
             server: ServerConfig {
-                host: std::env::var("SERVER_HOST")
-                    .unwrap_or_else(|_| "127.0.0.1".to_string()),
+                host: std::env::var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
                 port: std::env::var("SERVER_PORT")
                     .ok()
                     .and_then(|v| v.parse().ok())
@@ -106,15 +106,15 @@ impl Config {
                 ca_file: std::env::var("ZID_CA_FILE").ok().filter(|s| !s.is_empty()),
             },
         };
-        
+
         // Валидация конфигурации
         config.validate().map_err(|e| e.to_string())?;
-        
+
         Ok(config)
     }
 
     /// Валидация конфигурации
-    /// 
+    ///
     /// Проверяет секреты и выдает предупреждения, но не блокирует запуск.
     /// Для домашнего использования дефолтные значения допустимы.
     pub fn validate(&self) -> Result<(), String> {
