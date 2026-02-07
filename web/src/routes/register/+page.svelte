@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { user, authLoading, register } from '$lib/auth';
 	import Button from '$lib/components/Button.svelte';
 	import Input from '$lib/components/Input.svelte';
@@ -12,7 +12,7 @@
 	let isLoading = $state(false);
 
 	$effect(() => {
-		if ($page.url.pathname !== '/register') return;
+		if (page.url.pathname !== '/register') return;
 		if ($authLoading) return;
 		if ($user) goto('/projects', { replaceState: true });
 	});

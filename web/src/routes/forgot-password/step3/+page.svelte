@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { user, authLoading } from '$lib/auth';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	$effect(() => {
-		if ($page.url.pathname !== '/forgot-password/step3') return;
+		if (page.url.pathname !== '/forgot-password/step3') return;
 		if ($authLoading) return;
 		if ($user) goto('/projects', { replaceState: true });
 	});

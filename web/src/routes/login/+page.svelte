@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { user, authLoading, login } from "$lib/auth";
   import { setDocumentTitle } from "$lib/documentTitle";
   import Button from "$lib/components/Button.svelte";
@@ -15,11 +15,11 @@
 
   // Ошибка из query (редирект после неудачного входа через ZID)
   $effect(() => {
-    const errorFromUrl = $page.url.searchParams.get("error");
+    const errorFromUrl = page.url.searchParams.get("error");
     if (errorFromUrl) {
       error = decodeURIComponent(errorFromUrl);
       // Очистить query без перезагрузки
-      const url = new URL($page.url);
+      const url = new URL(page.url);
       url.searchParams.delete("error");
       window.history.replaceState({}, "", url.pathname + url.search);
     }
@@ -27,7 +27,7 @@
 
   // Публичная страница: если уже авторизован — редирект на /projects
   $effect(() => {
-    if ($page.url.pathname !== "/login") return;
+    if (page.url.pathname !== "/login") return;
     if ($authLoading) return;
     if ($user) goto("/projects", { replaceState: true });
   });

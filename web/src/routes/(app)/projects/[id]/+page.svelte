@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { projectsApi, configurationsApi } from '$lib/api';
 	import type { Project, Configuration } from '$lib/api';
@@ -9,7 +9,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
-	const id = $derived($page.params.id);
+	const id = $derived(page.params.id);
 
 	let project = $state<Project | null>(null);
 	let configurations = $state<Configuration[]>([]);

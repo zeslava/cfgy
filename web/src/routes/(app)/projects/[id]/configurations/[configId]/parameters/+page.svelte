@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { onMount, tick } from 'svelte';
+	import { page } from '$app/state';
 	import { projectsApi, configurationsApi, parametersApi } from '$lib/api';
 	import type { Project, Configuration, Parameters } from '$lib/api';
 	import { toastStore } from '$lib/toast';
@@ -9,8 +8,8 @@
 	import Input from '$lib/components/Input.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
-	const id = $derived($page.params.id);
-	const configId = $derived($page.params.configId);
+	const id = $derived(page.params.id);
+	const configId = $derived(page.params.configId);
 
 	let project = $state<Project | null>(null);
 	let configuration = $state<Configuration | null>(null);
@@ -21,6 +20,14 @@
 	let newKey = $state('');
 	let newValue = $state('');
 	let deleteConfirm = $state<string | null>(null);
+
+	$effect(() => {
+		if (showAddForm) {
+			tick().then(() => {
+				document.getElementById('new-param-key')?.focus();
+			});
+		}
+	});
 
 	onMount(() => {
 		if (id && configId) loadData();
@@ -110,7 +117,7 @@
 		{#if showAddForm}
 			<form onsubmit={handleAdd} class="projects-form">
 				<div class="flex gap-2 items-center w-full">
-					<Input bind:value={newKey} placeholder="Ключ" className="flex-1" required />
+					<Input id="new-param-key" bind:value={newKey} placeholder="Ключ" className="flex-1" required />
 					<Input bind:value={newValue} placeholder="Значение" className="flex-1" />
 					<Button type="submit" variant="basic-accent" size="small-text">Сохранить</Button>
 				</div>
