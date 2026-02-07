@@ -249,7 +249,7 @@ async fn env_output(
         std::fs::write(path, output)
             .with_context(|| format!("Не удалось записать файл: {}", path.display()))?;
     } else {
-        print!("{}", output);
+        println!("{}", output);
     }
     Ok(())
 }

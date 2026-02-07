@@ -8,7 +8,8 @@ fn escape_env_value(v: &str) -> String {
         || v.contains('\\')
         || v.contains('#')
         || v.starts_with(' ')
-        || v.ends_with(' ');
+        || v.ends_with(' ')
+        || v.starts_with(';'); // чтобы не трактовалось как комментарий в shell/.env
     if !needs_quotes {
         return v.to_string();
     }
