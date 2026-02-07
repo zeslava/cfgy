@@ -103,11 +103,17 @@ impl ProjectConfig {
     }
 
     /// Инициализировать проект
-    pub fn init(&mut self, project_name: String, path: &Path) -> Result<()> {
+    pub fn init(
+        &mut self,
+        project_name: String,
+        configuration: Option<String>,
+        path: &Path,
+    ) -> Result<()> {
         self.project = project_name;
 
-        // Установить configuration по умолчанию, если она пустая
-        if self.configuration.is_empty() {
+        if let Some(c) = configuration {
+            self.configuration = c;
+        } else if self.configuration.is_empty() {
             self.configuration = "dev".to_string();
         }
 

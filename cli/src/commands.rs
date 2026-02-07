@@ -16,6 +16,9 @@ pub enum Commands {
         /// Имя проекта
         #[arg(short, long)]
         project: Option<String>,
+        /// Configuration по умолчанию (например: dev, staging, prod)
+        #[arg(short, long)]
+        configuration: Option<String>,
     },
     /// Запустить команду с переменными окружения из конфигов
     Run {

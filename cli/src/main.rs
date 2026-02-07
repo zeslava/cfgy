@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { project } => init_project(project).await,
+        Commands::Init { project, configuration } => init_project(project, configuration).await,
         Commands::Use { configuration } => use_configuration(configuration).await,
         Commands::Set {
             key,
@@ -89,7 +89,7 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn init_project(project_name: Option<String>) -> Result<()> {
+async fn init_project(project_name: Option<String>, configuration: Option<String>) -> Result<()> {
     let path = ProjectConfig::config_path_in_current_dir()?;
     let mut config = ProjectConfig::load_or_default(path.clone())?;
 
@@ -101,7 +101,7 @@ async fn init_project(project_name: Option<String>) -> Result<()> {
             .unwrap_or_else(|| "default".to_string())
     });
 
-    config.init(project_name.clone(), &path)?;
+    config.init(project_name.clone(), configuration, &path)?;
     println!("✓ Проект '{}' инициализирован", project_name);
     println!("  Конфигурация: {}", path.display());
     println!("  Configuration: {}", config.configuration);
