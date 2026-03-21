@@ -3,7 +3,7 @@ FROM 15.0-RELEASE
 COPY target/release/cfgy /usr/local/bin/cfgy
 COPY web/build /var/lib/cfgy_server/web/build
 COPY freebsd/cfgy_server /usr/local/etc/rc.d/cfgy_server
-COPY freebsd/cfgy_server.conf.sample /usr/local/etc/cfgy_server/cfgy_server.conf
+COPY freebsd/cfgy_server.conf /usr/local/etc/cfgy_server/cfgy_server.conf
 
 SERVICE cfgy_server
 
