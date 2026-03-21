@@ -6,7 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use ring::digest;
 
-use crate::ports::CryptoService;
+use crate::server::ports::CryptoService;
 
 /// Размер ключа шифрования (256 бит для AES-256)
 #[allow(dead_code)]

@@ -1,27 +1,25 @@
-mod adapters;
-mod application;
-mod config;
-mod ports;
+pub mod adapters;
+pub mod application;
+pub mod config;
+pub mod ports;
 
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::adapters::api::handlers::AppState;
-use crate::adapters::api::{create_router, get_index_path};
-use crate::adapters::crypto::AesCryptoService;
-use crate::adapters::persistence::PostgresUserRepository;
-use crate::application::{
+use crate::server::adapters::api::handlers::AppState;
+use crate::server::adapters::api::{create_router, get_index_path};
+use crate::server::adapters::crypto::AesCryptoService;
+use crate::server::adapters::persistence::PostgresUserRepository;
+use crate::server::application::{
     auth::AuthService, parameters::ParameterService, projects::ProjectService,
 };
-use crate::ports::{ExternalIdentityRepository, UserRepository};
+use crate::server::ports::{ExternalIdentityRepository, UserRepository};
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+pub async fn run_server() -> anyhow::Result<()> {
     use std::io::Write;
     eprintln!("[1/7] Инициализация логирования...");
 
-    // Настройка формата логирования
     let log_format = std::env::var("LOG_FORMAT").unwrap_or_default();
     if log_format == "json" {
         use tracing_subscriber::EnvFilter;
@@ -67,17 +65,13 @@ async fn main() -> anyhow::Result<()> {
     );
     tracing::info!("Database URL: {}", config.database.url);
 
-    // Инициализация пула подключений к PostgreSQL
     eprintln!("[4/7] Подключение к базе данных...");
     eprintln!("  - URL: {}", config.database.url);
     let pool = match PgPoolOptions::new()
         .max_connections(config.database.max_connections)
         .acquire_timeout(std::time::Duration::from_secs(30))
-        // Максимальное время жизни подключения (30 минут)
         .max_lifetime(std::time::Duration::from_secs(30 * 60))
-        // Время простоя перед закрытием подключения (10 минут)
         .idle_timeout(std::time::Duration::from_secs(10 * 60))
-        // Проверка подключения перед использованием
         .test_before_acquire(true)
         .connect(&config.database.url)
         .await
@@ -95,7 +89,6 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Connected to database successfully");
 
-    // Проверка подключения через простой запрос
     eprintln!("[4/7] Проверка подключения к базе данных...");
     let result: (i64,) = match sqlx::query_as::<_, (i64,)>("SELECT $1")
         .bind(1_i64)
@@ -114,19 +107,14 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Database query test result: {}", result.0);
 
-    // Инициализация репозиториев
     eprintln!("[5/7] Инициализация репозиториев...");
     let repositories = PostgresUserRepository::new(pool.clone());
     eprintln!("[5/7] ✓ Репозитории инициализированы");
 
-    // Репозиторий пользователей (для SSO provisioning / lookup)
     let user_repo: Arc<dyn UserRepository> = Arc::new(repositories.clone());
-
-    // Репозиторий привязок внешних идентичностей (ZID, etc.)
     let external_identity_repo: Arc<dyn ExternalIdentityRepository> =
         Arc::new(repositories.clone());
 
-    // Инициализация криптографического сервиса
     eprintln!("[5/7] Инициализация криптографического сервиса...");
     let master_key_bytes = config.crypto.master_key.as_bytes();
     let crypto_service = match AesCryptoService::new(master_key_bytes) {
@@ -146,7 +134,6 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    // Инициализация сервисов приложения
     eprintln!("[6/7] Инициализация сервисов приложения...");
     let project_service = Arc::new(ProjectService::new(
         repositories.clone(),
@@ -167,7 +154,6 @@ async fn main() -> anyhow::Result<()> {
     let auth_service = Arc::new(AuthService::new(repositories.clone(), repositories));
     eprintln!("[6/7] ✓ AuthService инициализирован");
 
-    // Создание состояния приложения
     eprintln!("[6/7] Создание состояния приложения...");
     let web_root = get_index_path()
         .parent()
@@ -184,24 +170,22 @@ async fn main() -> anyhow::Result<()> {
     };
     eprintln!("[6/7] ✓ Состояние приложения создано");
 
-    // Создание роутера
     eprintln!("[6/7] Создание роутера...");
     let app = create_router(app_state);
     eprintln!("[6/7] ✓ Роутер создан");
 
-    // Запуск сервера
     eprintln!("[7/7] Запуск HTTP сервера...");
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server.port));
     let server_url = format!("http://localhost:{}", config.server.port);
 
     eprintln!("\n{}", "=".repeat(60));
-    eprintln!("🚀 CFGY Server запущен!");
-    eprintln!("📡 Адрес сервера: {}", server_url);
+    eprintln!("CFGY Server запущен!");
+    eprintln!("Адрес сервера: {}", server_url);
     eprintln!(
-        "🌐 Локальный адрес: http://127.0.0.1:{}",
+        "Локальный адрес: http://127.0.0.1:{}",
         config.server.port
     );
-    eprintln!("🌍 Сетевой адрес: http://0.0.0.0:{}", config.server.port);
+    eprintln!("Сетевой адрес: http://0.0.0.0:{}", config.server.port);
     eprintln!("{}\n", "=".repeat(60));
 
     tracing::info!("Listening on {}", addr);
@@ -221,7 +205,6 @@ async fn main() -> anyhow::Result<()> {
     eprintln!("[7/7] ✓ Сервер готов принимать подключения");
     eprintln!("[7/7] Ожидание запросов...\n");
 
-    // Настройка graceful shutdown
     let shutdown = async {
         let ctrl_c = async {
             tokio::signal::ctrl_c()

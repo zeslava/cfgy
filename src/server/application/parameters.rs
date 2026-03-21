@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::ports::entities::ConfigKey;
-use crate::ports::{
+use crate::server::ports::entities::ConfigKey;
+use crate::server::ports::{
     ConfigKeyRepository, ConfigurationRepository, CryptoService, ProjectRepository,
 };
 
@@ -297,7 +297,7 @@ where
         project_id: Uuid,
         config_name: &str,
         owner_id: Uuid,
-    ) -> Result<crate::ports::entities::Configuration> {
+    ) -> Result<crate::server::ports::entities::Configuration> {
         // Попробовать найти существующую конфигурацию
         if let Some(config) = self
             .config_repo

@@ -1,7 +1,7 @@
 use axum::http::{HeaderMap, StatusCode, header};
 use uuid::Uuid;
 
-use crate::adapters::api::handlers::{AppState, ErrorResponse};
+use crate::server::adapters::api::handlers::{AppState, ErrorResponse};
 
 /// Имя httpOnly cookie, в котором хранится JWT сессионный токен для Web UI
 const CFGY_SESSION_COOKIE_NAME: &str = "cfgy_session";
@@ -14,10 +14,10 @@ pub struct AuthenticatedUser {
 fn get_cookie_value(cookie_header: &str, name: &str) -> Option<String> {
     for part in cookie_header.split(';') {
         let p = part.trim();
-        if let Some(rest) = p.strip_prefix(&format!("{}=", name)) {
-            if !rest.is_empty() {
-                return Some(rest.to_string());
-            }
+        if let Some(rest) = p.strip_prefix(&format!("{}=", name))
+            && !rest.is_empty()
+        {
+            return Some(rest.to_string());
         }
     }
     None

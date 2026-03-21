@@ -103,6 +103,8 @@ pub enum Commands {
         #[arg(short, long, default_value = "env")]
         format: String,
     },
+    /// Запустить HTTP сервер CFGY
+    Serve,
     /// Скрипты автодополнения (generate в stdout или install в стандартные каталоги)
     Completions {
         #[command(subcommand)]

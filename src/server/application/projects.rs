@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use uuid::Uuid;
 
-use crate::ports::entities::{Configuration, Project};
-use crate::ports::{
+use crate::server::ports::entities::{Configuration, Project};
+use crate::server::ports::{
     ConfigKeyRepository, ConfigurationRepository, CryptoService, ProjectRepository,
 };
 

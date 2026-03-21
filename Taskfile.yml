@@ -10,29 +10,19 @@ tasks:
       - task --list
 
   build:
-    desc: Собрать cfgy-server (release)
+    desc: Собрать cfgy (release)
     cmds:
-      - cargo build --release --bin cfgy-server
+      - cargo build --release
 
-  cli:
-    deps:
-      - build-cli
-    cmd: ./target/release/cfgy-cli
-
-  build-cli:
-    desc: Собрать cfgy CLI (release)
+  install:
+    desc: "Установить cfgy в /usr/local/bin (запускать с sudo: sudo task install)"
+    deps: [build]
     cmds:
-      - cargo build --release -p cfgy-cli
-
-  install-cli:
-    desc: "Установить cfgy CLI в /usr/local/bin (запускать с sudo: sudo task install-cli)"
-    deps: [build-cli]
-    cmds:
-      - sudo install -m 755 target/release/cfgy-cli /usr/local/bin/cfgy
+      - sudo install -m 755 target/release/cfgy /usr/local/bin/cfgy
       - 'echo "Установлено: /usr/local/bin/cfgy"'
 
-  uninstall-cli:
-    desc: "Удалить cfgy CLI из /usr/local/bin (запускать с sudo: sudo task uninstall-cli)"
+  uninstall:
+    desc: "Удалить cfgy из /usr/local/bin (запускать с sudo: sudo task uninstall)"
     cmds:
       - sudo rm -f /usr/local/bin/cfgy
       - 'echo "Удалено: /usr/local/bin/cfgy"'
@@ -42,7 +32,7 @@ tasks:
     deps: [build, migrate]
     cmds:
       - echo "Сервер на http://localhost:8080"
-      - ./target/release/cfgy-server
+      - ./target/release/cfgy serve
 
   build-web:
     desc: Собрать веб в релиз (web/build)
@@ -70,15 +60,14 @@ tasks:
 
   migrate:
     desc: Применить миграции
-    dir: server
     cmds:
       - sqlx migrate run --database-url "$DATABASE_URL"
     ignore_error: true
 
   generate-secrets:
-    desc: Сгенерировать CFGY_MASTER_KEY и CFGY_JWT_SECRET (через cfgy generate-secrets)
+    desc: Сгенерировать CFGY_MASTER_KEY и CFGY_JWT_SECRET
     cmds:
-      - cargo run -p cfgy-cli --release -- generate-secrets --format env
+      - cargo run --release -- generate-secrets --format env
 
   wait-postgres:
     internal: true
@@ -93,6 +82,12 @@ tasks:
         done
 
   install-freebsd:
-    desc: Установить cfgy-server как системный сервис на FreeBSD (запускать от root на целевом хосте)
+    desc: Установить cfgy как системный сервис на FreeBSD (запускать от root на целевом хосте)
     cmds:
-      - ./freebsd/install.sh target/release/cfgy-server
+      - ./freebsd/install.sh target/release/cfgy
+
+  dail:
+    desc: Собрать и запустить cfgy в dail jail
+    deps: [build, build-web]
+    cmds:
+      - dail run cfgy.dail

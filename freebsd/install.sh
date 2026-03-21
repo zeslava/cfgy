@@ -28,7 +28,7 @@ CFGY_LOG_DIR="/var/log/cfgy_server"
 CFGY_RUN_DIR="/var/run/cfgy_server"
 CFGY_ETC_DIR="/usr/local/etc/cfgy_server"
 CFGY_NAME="cfgy_server"
-BIN_NAME="cfgy-server"
+BIN_NAME="cfgy"
 BIN_PATH="${1:-./${BIN_NAME}}"
 WEB_DIST_SOURCE="${2:-}"
 if [ -z "${WEB_DIST_SOURCE}" ]; then
@@ -48,7 +48,7 @@ fi
 # Проверка наличия бинарника
 if [ ! -f "$BIN_PATH" ]; then
     echo "${RED}Ошибка: бинарник не найден: $BIN_PATH${NC}"
-    echo "Сначала соберите проект: cargo build --release -p cfgy-server"
+    echo "Сначала соберите проект: cargo build --release"
     exit 1
 fi
 

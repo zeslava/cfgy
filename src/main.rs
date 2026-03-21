@@ -1,30 +1,26 @@
-mod client;
-mod commands;
-mod config;
-mod crypto;
-mod formats;
-mod storage;
+mod cli;
+mod server;
 
 use anyhow::{Context, Result};
 use clap::CommandFactory;
 use clap::Parser;
 use clap_complete::Generator;
 use clap_complete::aot;
-use client::ApiClient;
-use commands::{Cli, Commands, CompletionsAction, ConfigAction, ProjectsAction, TokenAction};
-use config::AppConfig;
-use formats::OutputFormat;
+use cli::client::ApiClient;
+use cli::commands::{Cli, Commands, CompletionsAction, ConfigAction, ProjectsAction, TokenAction};
+use cli::config::AppConfig;
+use cli::formats::OutputFormat;
+use cli::storage::ProjectConfig;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use storage::ProjectConfig;
 
 /// Убедиться, что настроено подключение к серверу; при отсутствии конфига — интерактивный диалог.
 fn ensure_server_config(app_config: AppConfig) -> Result<AppConfig> {
     if app_config.has_server_access() {
         return Ok(app_config);
     }
-    config::interactive_setup(&app_config)?;
+    cli::config::interactive_setup(&app_config)?;
     Ok(AppConfig::load())
 }
 
@@ -39,6 +35,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Serve => server::run_server().await,
         Commands::Init {
             project,
             configuration,
@@ -170,7 +167,6 @@ async fn init_project(project_name: Option<String>, configuration: Option<String
     let path = ProjectConfig::config_path_in_current_dir()?;
     let mut config = ProjectConfig::load_or_default(path.clone())?;
 
-    // Имя проекта: из аргумента, из имени директории, или текущее из конфига
     let project_name = project_name.unwrap_or_else(|| {
         std::env::current_dir()
             .ok()
@@ -202,20 +198,16 @@ async fn set_config(
         anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
     }
 
-    // Работа с сервером - найти проект по имени
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
 
-    // Получить текущие секреты
     let mut secrets = client
         .get_secrets(project.id, &configuration)
         .await
         .unwrap_or_default();
 
-    // Обновить нужный секрет
     secrets.insert(key.clone(), value.clone());
 
-    // Отправить обновленные секреты
     client
         .set_secrets(project.id, &configuration, &secrets)
         .await?;
@@ -245,7 +237,6 @@ async fn get_config(
         anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
     }
 
-    // Работа с сервером - найти проект по имени
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
     let secrets = client.get_secrets(project.id, &configuration).await?;
@@ -259,7 +250,6 @@ async fn get_config(
 
     let output_format = OutputFormat::from_str(&format)?;
 
-    // Для одного значения создаем HashMap с одним ключом
     let mut single_config = std::collections::HashMap::new();
     single_config.insert(key.clone(), value);
 
@@ -284,7 +274,6 @@ async fn list_configs(
         anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
     }
 
-    // Работа с сервером - найти проект по имени
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
     let configs = client.get_secrets(project.id, &configuration).await?;
@@ -300,7 +289,6 @@ async fn list_configs(
     Ok(())
 }
 
-/// Вывод параметров в формате .env (для дампа в файл или docker --env-file).
 async fn env_output(
     configuration: Option<String>,
     output_path: Option<&Path>,
@@ -347,11 +335,9 @@ async fn delete_config(
         anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
     }
 
-    // Работа с сервером - найти проект по имени
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
 
-    // Удалить секрет на сервере
     client
         .delete_secret(project.id, &configuration, &key)
         .await?;
@@ -367,7 +353,6 @@ async fn delete_config(
 async fn run_command(command: Vec<String>, app_config: &AppConfig) -> Result<()> {
     let config = ProjectConfig::load()?;
 
-    // Получить configuration из конфигурации или из переменной окружения (fallback)
     let configuration = if !config.configuration.is_empty() {
         config.configuration.clone()
     } else {
@@ -381,7 +366,6 @@ async fn run_command(command: Vec<String>, app_config: &AppConfig) -> Result<()>
         anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
     }
 
-    // Работа с сервером - найти проект по имени и получить "parameters" для указанной configuration
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
     let project = client.find_project_by_name(&config.project).await?;
     let configs = client.get_secrets(project.id, &configuration).await?;
@@ -419,16 +403,13 @@ async fn handle_projects(action: ProjectsAction, app_config: &AppConfig) -> Resu
 }
 
 async fn list_projects(app_config: &AppConfig) -> Result<()> {
-    // Получить токен и URL сервера из переменных окружения
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
 
-    // Работа с сервером - получить список всех проектов
     let client = ApiClient::new(server_url, Some(token.clone()));
     let projects = client.list_projects().await?;
 
     if projects.is_empty() {
-        // Локальная работа
         let config = ProjectConfig::load()?;
         if !config.project.is_empty() {
             println!("✓ Текущий проект: {}", config.project);
@@ -438,7 +419,6 @@ async fn list_projects(app_config: &AppConfig) -> Result<()> {
         return Ok(());
     }
 
-    // Вывести список проектов
     for project in projects {
         println!("  - {} (ID: {})", project.name, project.id);
     }
@@ -447,13 +427,11 @@ async fn list_projects(app_config: &AppConfig) -> Result<()> {
 }
 
 async fn create_project(app_config: &AppConfig) -> Result<()> {
-    // Получить токен и URL сервера из переменных окружения
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
 
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
 
-    // Запросить имя проекта
     print!("Введите имя проекта: ");
     io::stdout().flush()?;
     let mut name = String::new();
@@ -468,7 +446,6 @@ async fn create_project(app_config: &AppConfig) -> Result<()> {
 
     let project = client.create_project(name.clone(), None).await?;
 
-    // Сохранить имя проекта в конфигурации
     let path = ProjectConfig::config_path_in_current_dir()?;
     let mut config = ProjectConfig::load_or_default(path.clone())?;
     config.project = name.clone();
@@ -480,7 +457,6 @@ async fn create_project(app_config: &AppConfig) -> Result<()> {
 }
 
 async fn delete_project(app_config: &AppConfig) -> Result<()> {
-    // Получить токен и URL сервера из переменных окружения
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
 
@@ -492,10 +468,8 @@ async fn delete_project(app_config: &AppConfig) -> Result<()> {
 
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
 
-    // Найти проект по имени
     let project = client.find_project_by_name(&project_name).await?;
 
-    // Подтверждение удаления
     print!(
         "Вы уверены, что хотите удалить проект '{}'? Это действие нельзя отменить. (yes/no): ",
         project_name
@@ -512,10 +486,8 @@ async fn delete_project(app_config: &AppConfig) -> Result<()> {
         return Ok(());
     }
 
-    // Удалить проект на сервере
     client.delete_project(project.id).await?;
 
-    // Очистить локальную конфигурацию
     let path = ProjectConfig::find_config_path()?;
     let mut config = ProjectConfig::load_or_default(path.clone())?;
     config.project = std::env::current_dir()
@@ -529,7 +501,6 @@ async fn delete_project(app_config: &AppConfig) -> Result<()> {
 }
 
 async fn rename_project(app_config: &AppConfig) -> Result<()> {
-    // Получить токен и URL сервера из переменных окружения
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
 
@@ -541,10 +512,8 @@ async fn rename_project(app_config: &AppConfig) -> Result<()> {
 
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
 
-    // Найти проект по имени
     let project = client.find_project_by_name(&old_name).await?;
 
-    // Запросить новое имя проекта
     print!("Введите новое имя проекта: ");
     io::stdout().flush()?;
     let mut new_name = String::new();
@@ -562,12 +531,10 @@ async fn rename_project(app_config: &AppConfig) -> Result<()> {
         return Ok(());
     }
 
-    // Обновить проект на сервере
     let updated_project = client
         .update_project(project.id, Some(new_name.clone()), None)
         .await?;
 
-    // Обновить локальную конфигурацию
     let path = ProjectConfig::find_config_path()?;
     let mut config = ProjectConfig::load()?;
     config.project = new_name.clone();
@@ -591,7 +558,6 @@ async fn view_project(_app_config: &AppConfig) -> Result<()> {
 }
 
 async fn edit_project(app_config: &AppConfig) -> Result<()> {
-    // Получить токен и URL сервера из переменных окружения
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
 
@@ -603,10 +569,8 @@ async fn edit_project(app_config: &AppConfig) -> Result<()> {
 
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
 
-    // Найти проект по имени
     let project = client.find_project_by_name(&project_name).await?;
 
-    // Показать текущие данные
     println!("Текущая информация о проекте:");
     println!("  Имя: {}", project.name);
     if let Some(desc) = &project.description {
@@ -616,7 +580,6 @@ async fn edit_project(app_config: &AppConfig) -> Result<()> {
     }
     println!();
 
-    // Запросить новое имя (опционально)
     print!(
         "Новое имя проекта (Enter чтобы оставить '{}'): ",
         project.name
@@ -633,7 +596,6 @@ async fn edit_project(app_config: &AppConfig) -> Result<()> {
         Some(new_name.to_string())
     };
 
-    // Запросить новое описание (опционально)
     print!("Новое описание проекта (Enter чтобы оставить текущее): ");
     io::stdout().flush()?;
     let mut new_desc_input = String::new();
@@ -647,12 +609,10 @@ async fn edit_project(app_config: &AppConfig) -> Result<()> {
         Some(new_desc.to_string())
     };
 
-    // Обновить проект на сервере
     let updated_project = client
         .update_project(project.id, new_name.clone(), new_desc.clone())
         .await?;
 
-    // Обновить локальную конфигурацию, если имя изменилось
     if let Some(new_name) = &new_name {
         let path = ProjectConfig::find_config_path()?;
         let mut config = ProjectConfig::load()?;
@@ -685,7 +645,6 @@ async fn use_configuration(configuration: String) -> Result<()> {
     Ok(())
 }
 
-/// Обработка команд работы с токенами
 async fn handle_token(action: TokenAction, app_config: &AppConfig) -> Result<()> {
     match action {
         TokenAction::List => {
@@ -715,7 +674,6 @@ async fn handle_token(action: TokenAction, app_config: &AppConfig) -> Result<()>
     }
 }
 
-/// Обработка команд центрального конфига (~/.cfgy/config.yaml)
 async fn handle_config(action: ConfigAction, app_config: &AppConfig) -> Result<()> {
     match action {
         ConfigAction::Init => config_init(app_config).await,
@@ -724,12 +682,12 @@ async fn handle_config(action: ConfigAction, app_config: &AppConfig) -> Result<(
 }
 
 async fn config_init(app_config: &AppConfig) -> Result<()> {
-    config::interactive_setup(app_config)?;
+    cli::config::interactive_setup(app_config)?;
     Ok(())
 }
 
 async fn config_show(app_config: &AppConfig) -> Result<()> {
-    let path = config::config_file_path();
+    let path = cli::config::config_file_path();
     if let Some(ref p) = path {
         println!("Файл: {}", p.display());
     } else {
@@ -755,22 +713,19 @@ async fn config_show(app_config: &AppConfig) -> Result<()> {
     Ok(())
 }
 
-/// Генерация секретных ключей для сервера
 async fn generate_secrets(format: String) -> Result<()> {
     use ring::rand::{SecureRandom, SystemRandom};
 
-    const MASTER_KEY_LEN: usize = 32; // 32 байта = 64 hex символа
-    const JWT_SECRET_LEN: usize = 32; // 32 байта = 64 hex символа
+    const MASTER_KEY_LEN: usize = 32;
+    const JWT_SECRET_LEN: usize = 32;
 
     let rng = SystemRandom::new();
 
-    // Генерация master_key (32 байта = 64 hex символа)
     let mut master_key_bytes = vec![0u8; MASTER_KEY_LEN];
     rng.fill(&mut master_key_bytes)
         .map_err(|_| anyhow::anyhow!("Не удалось сгенерировать master_key"))?;
     let master_key = hex::encode(&master_key_bytes);
 
-    // Генерация jwt_secret (32 байта = 64 hex символа)
     let mut jwt_secret_bytes = vec![0u8; JWT_SECRET_LEN];
     rng.fill(&mut jwt_secret_bytes)
         .map_err(|_| anyhow::anyhow!("Не удалось сгенерировать jwt_secret"))?;

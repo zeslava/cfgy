@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::ports::entities::{AccessToken, ConfigKey, Configuration, Project, User};
-use crate::ports::{
+use crate::server::ports::entities::{AccessToken, ConfigKey, Configuration, Project, User};
+use crate::server::ports::{
     AccessTokenRepository, ConfigKeyRepository, ConfigurationRepository,
     ExternalIdentityRepository, ProjectRepository, UserRepository,
 };

@@ -11,7 +11,7 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
 };
 
-use crate::adapters::api::handlers::AppState;
+use crate::server::adapters::api::handlers::AppState;
 
 /// Получить путь к index.html, проверяя несколько возможных расположений
 /// Все проверки выполняются во время выполнения, чтобы работать независимо от места запуска.
@@ -131,7 +131,7 @@ async fn serve_index() -> Response<Body> {
 
 /// Создать роутер с всеми маршрутами
 pub fn create_router(state: AppState) -> Router {
-    use crate::adapters::api::handlers;
+    use crate::server::adapters::api::handlers;
 
     // Статические файлы из web/build (относительно корня проекта)
     // Используем ту же логику поиска, что и для index.html

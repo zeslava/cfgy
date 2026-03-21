@@ -3,7 +3,7 @@
 # PROVIDE: cfgy_server
 # REQUIRE: NETWORKING DAEMON
 # BEFORE: LOGIN
-# KEYWORD: nojail
+# KEYWORD: shutdown
 #
 # CFGY API Server
 # FreeBSD rc.d service script
@@ -38,7 +38,8 @@ load_rc_config "$name"
 : "${cfgy_server_pidfile:=/var/run/cfgy_server/cfgy_server.pid}"
 : "${cfgy_server_cwd:=/var/lib/cfgy_server}"
 
-command="/usr/local/bin/cfgy-server"
+command="/usr/local/bin/cfgy"
+command_args="serve"
 pidfile="${cfgy_server_pidfile}"
 
 start_cmd="${name}_start"
@@ -77,7 +78,7 @@ cfgy_server_start()
 	# Запуск без -p/-o: daemon сразу возвращает управление.
 	# CWD задаётся в cfgy_server_cwd (сервер ищет web/dist там).
 	# Переменные из env_file подгружаем в окружение; echo $$ и exec — один процесс, PID в pidfile.
-	/usr/sbin/daemon -u "$cfgy_server_user" sh -c 'cd "'"$cfgy_server_cwd"'" && set -a && . "'"$cfgy_server_env_file"'"; set +a && echo $$ > "'"$pidfile"'" && exec '"$command"' >> "'"$cfgy_server_logfile"'" 2>&1'
+	/usr/sbin/daemon -u "$cfgy_server_user" sh -c 'cd "'"$cfgy_server_cwd"'" && set -a && . "'"$cfgy_server_env_file"'"; set +a && echo $$ > "'"$pidfile"'" && exec '"$command"' '"$command_args"' >> "'"$cfgy_server_logfile"'" 2>&1'
 
 	RETVAL=$?
 	if [ $RETVAL -eq 0 ]; then

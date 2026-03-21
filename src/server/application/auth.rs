@@ -6,9 +6,9 @@ use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::config::Config;
-use crate::ports::entities::{AccessToken, User};
-use crate::ports::{AccessTokenRepository, UserRepository};
+use crate::server::config::Config;
+use crate::server::ports::entities::{AccessToken, User};
+use crate::server::ports::{AccessTokenRepository, UserRepository};
 
 /// JWT Claims для сессионного токена
 #[derive(Debug, Serialize, Deserialize)]

@@ -13,36 +13,36 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::adapters::api::auth::extract_user;
-use crate::application::{
+use crate::server::adapters::api::auth::extract_user;
+use crate::server::application::{
     auth::AuthService, parameters::ParameterService, projects::ProjectService,
 };
-use crate::config::{Config, ZidConfig};
-use crate::ports::{ExternalIdentityRepository, UserRepository};
+use crate::server::config::{Config, ZidConfig};
+use crate::server::ports::{ExternalIdentityRepository, UserRepository};
 
 /// Контекст приложения (все сервисы и репозитории)
 #[derive(Clone)]
 pub struct AppState {
     pub project_service: Arc<
         ProjectService<
-            crate::adapters::persistence::PostgresUserRepository,
-            crate::adapters::persistence::PostgresUserRepository,
-            crate::adapters::persistence::PostgresUserRepository,
-            crate::adapters::crypto::AesCryptoService,
+            crate::server::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::crypto::AesCryptoService,
         >,
     >,
     pub parameter_service: Arc<
         ParameterService<
-            crate::adapters::persistence::PostgresUserRepository,
-            crate::adapters::persistence::PostgresUserRepository,
-            crate::adapters::persistence::PostgresUserRepository,
-            crate::adapters::crypto::AesCryptoService,
+            crate::server::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::crypto::AesCryptoService,
         >,
     >,
     pub auth_service: Arc<
         AuthService<
-            crate::adapters::persistence::PostgresUserRepository,
-            crate::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::persistence::PostgresUserRepository,
+            crate::server::adapters::persistence::PostgresUserRepository,
         >,
     >,
     pub user_repo: Arc<dyn UserRepository>,
