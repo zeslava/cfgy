@@ -89,6 +89,13 @@ pub async fn run_server() -> anyhow::Result<()> {
 
     tracing::info!("Connected to database successfully");
 
+    eprintln!("[4/7] Применение миграций...");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Migration failed: {}", e))?;
+    eprintln!("[4/7] ✓ Миграции применены");
+
     eprintln!("[4/7] Проверка подключения к базе данных...");
     let result: (i64,) = match sqlx::query_as::<_, (i64,)>("SELECT $1")
         .bind(1_i64)
