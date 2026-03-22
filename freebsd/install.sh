@@ -145,8 +145,9 @@ if [ ! -f "$ENV_FILE" ]; then
 # Права: 0640, владелец root:cfgy
 
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/cfgy
-CFGY_MASTER_KEY=your-master-key-minimum-32-characters-long
-CFGY_JWT_SECRET=your-jwt-secret-minimum-16-chars
+# Генерируются автоматически при первом запуске, если не заданы
+# CFGY_MASTER_KEY=
+# CFGY_JWT_SECRET=
 RUST_LOG=info
 EOF
         chmod 0640 "$ENV_FILE"

@@ -9,9 +9,10 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/cfgy
 # (/var/lib/cfgy_server). Если статику положили в другое место — задайте путь к каталогу с index.html:
 # CFGY_WEB_ROOT=/var/lib/cfgy_server/web/dist
 
-# Криптография (обязательно задать в проде!)
-CFGY_MASTER_KEY=your-master-key-minimum-32-characters-long
-CFGY_JWT_SECRET=your-jwt-secret-minimum-16-chars
+# Криптография (генерируются автоматически при первом запуске, если не заданы)
+# Для production рекомендуется задать явно (cfgy generate-secrets --format env)
+# CFGY_MASTER_KEY=
+# CFGY_JWT_SECRET=
 
 # Сервер (0.0.0.0 для доступа снаружи)
 # SERVER_HOST=127.0.0.1
