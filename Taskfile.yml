@@ -81,6 +81,12 @@ tasks:
           sleep 1
         done
 
+  e2e:
+    desc: Запустить e2e тесты (поднимает сервер, прогоняет тесты, останавливает)
+    deps: [build, migrate]
+    cmds:
+      - bash scripts/run-e2e.sh
+
   install-freebsd:
     desc: Установить cfgy как системный сервис на FreeBSD (запускать от root на целевом хосте)
     cmds:
