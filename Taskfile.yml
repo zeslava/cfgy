@@ -90,7 +90,7 @@ tasks:
   install-freebsd:
     desc: Установить cfgy как системный сервис на FreeBSD (запускать от root на целевом хосте)
     cmds:
-      - ./freebsd/install.sh target/release/cfgy
+      - doas ./freebsd/install.sh target/release/cfgy
 
   dail:
     desc: Собрать и запустить cfgy в dail jail
