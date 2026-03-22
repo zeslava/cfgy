@@ -83,7 +83,7 @@
 		<h1 class="projects-title">Мои проекты</h1>
 		<Button
 			variant="basic-secondary"
-			size="big-text"
+			size="small-text"
 			onclick={() => {
 				showCreateForm = true;
 				createError = '';
@@ -108,8 +108,10 @@
 						class="projects-input"
 						required
 					/>
-					<Button type="submit" variant="basic-accent" size="small-text">
-						Сохранить
+					<Button type="submit" variant="basic-secondary" size="small-icon" aria-label="Создать проект">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+							<path d="M9.55 18l-5.7-5.7 1.425-1.425L9.55 15.15l9.175-9.175L20.15 7.4 9.55 18z" fill="currentColor" />
+						</svg>
 					</Button>
 				</div>
 			</form>

@@ -474,6 +474,11 @@ code {
 }
 .button-primary-default:hover {
   background: var(--color-basic-accent-hover);
+  border: 1px solid var(--color-lines-accent);
+}
+.button-primary-default:active {
+  box-shadow: inset 0px 4px 16px 0px rgba(0, 0, 51, 0.32);
+  border: 1px solid var(--color-text-dark);
 }
 .button-primary-disabled {
   background: var(--color-basic-accent-disabled);
@@ -487,6 +492,11 @@ code {
 }
 .button-secondary-default:hover {
   background: var(--color-basic-secondary-hover);
+  border: 1px solid var(--color-lines-accent);
+}
+.button-secondary-default:active {
+  box-shadow: inset 0px 4px 16px 0px white;
+  border: 1px solid var(--color-text-dark);
 }
 .button-secondary-disabled {
   background: var(--color-states-disable);
@@ -538,6 +548,10 @@ code {
 .input-container-error {
   background: var(--colors-surface);
   outline-color: var(--color-states-error);
+}
+.input-container-success {
+  background: var(--colors-surface);
+  outline-color: var(--color-states-success);
 }
 .input-container-disabled {
   background: var(--color-states-disable);
@@ -594,6 +608,9 @@ code {
 }
 .input-description-error {
   color: var(--color-states-error);
+}
+.input-description-success {
+  color: var(--color-states-success);
 }
 
 /* ========== Login page ========== */
@@ -817,7 +834,7 @@ code {
 .projects-page {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 40px;
   width: 100%;
 }
 .projects-header {
@@ -829,7 +846,7 @@ code {
 .projects-title {
   font-family: "Istok Web", sans-serif;
   font-weight: 700;
-  font-size: 40px;
+  font-size: 32px;
   color: var(--color-text-dark);
 }
 .projects-error {
@@ -847,7 +864,7 @@ code {
   width: 100%;
 }
 .projects-input-wrapper {
-  border: 2px solid var(--color-lines-gray);
+  border: 1px solid var(--color-lines-gray);
   border-radius: 4px;
   box-sizing: border-box;
   display: flex;
@@ -863,9 +880,9 @@ code {
   border: none;
   outline: none;
   background: transparent;
-  font-family: "Inter", sans-serif;
-  font-size: 16px;
-  color: var(--colors-text-secondary);
+  font-family: "Istok Web", sans-serif;
+  font-size: 24px;
+  color: var(--color-text-dark);
   padding: 0;
   height: 100%;
   min-width: 0;
@@ -875,7 +892,7 @@ code {
 }
 .projects-divider {
   height: 0;
-  border-top: 2px solid var(--color-lines-gray);
+  border-top: 1px solid var(--color-lines-gray);
   width: 100%;
 }
 .projects-list {
@@ -888,7 +905,7 @@ code {
   align-items: center;
   gap: 16px;
   padding: 12px 0;
-  border-top: 2px solid var(--color-lines-gray);
+  border-top: 1px solid var(--color-lines-gray);
   cursor: pointer;
 }
 .projects-row:first-child {
@@ -901,8 +918,8 @@ code {
   flex: 1;
   text-decoration: none;
   color: var(--color-text-dark);
-  font-family: "Inter", sans-serif;
-  font-size: 16px;
+  font-family: "Istok Web", sans-serif;
+  font-size: 24px;
 }
 .projects-item-link:hover {
   text-decoration: underline;

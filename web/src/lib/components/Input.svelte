@@ -1,5 +1,5 @@
 <script lang="ts">
-  export type InputState = "default" | "focus" | "disabled" | "error";
+  export type InputState = "default" | "focus" | "disabled" | "error" | "success";
 
   interface Props {
     type?: string;
@@ -47,11 +47,13 @@
   const containerClass = $derived(
     inputState === "error"
       ? "input-container-error"
-      : inputState === "disabled" || isDisabled
-        ? "input-container-disabled"
-        : isFocused
-          ? "input-container-focus"
-          : "input-container-default"
+      : inputState === "success"
+        ? "input-container-success"
+        : inputState === "disabled" || isDisabled
+          ? "input-container-disabled"
+          : isFocused
+            ? "input-container-focus"
+            : "input-container-default"
   );
   const fieldClass = $derived(
     isDisabled ? "input-field-disabled" : "input-field-default"
@@ -59,7 +61,9 @@
   const descClass = $derived(
     inputState === "error"
       ? "input-description-error"
-      : "input-description-default"
+      : inputState === "success"
+        ? "input-description-success"
+        : "input-description-default"
   );
   const iconClass = $derived(
     inputState === "error" ? "input-icon-error" : "input-icon-default"

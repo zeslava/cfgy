@@ -1,1 +1,0 @@
-cd /home/slava/dev/github.com/zeslava/cfgy/web && npm run build
