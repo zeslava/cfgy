@@ -96,4 +96,4 @@ tasks:
     desc: Собрать и запустить cfgy в dail jail
     deps: [build, build-web]
     cmds:
-      - dail run cfgy.dail
+      - doas dail run cfgy.dail
