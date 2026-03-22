@@ -69,8 +69,39 @@ pub struct CryptoConfig {
 }
 
 impl Config {
+    /// Сгенерировать случайный hex-ключ заданной длины (в байтах).
+    fn generate_random_hex(len: usize) -> String {
+        use ring::rand::{SecureRandom, SystemRandom};
+        let rng = SystemRandom::new();
+        let mut buf = vec![0u8; len];
+        rng.fill(&mut buf).expect("Не удалось сгенерировать случайные байты");
+        hex::encode(&buf)
+    }
+
     /// Загрузить конфигурацию из переменных окружения
     pub fn load() -> Result<Self, String> {
+        let master_key = match std::env::var("CFGY_MASTER_KEY") {
+            Ok(k) if !k.is_empty() => k,
+            _ => {
+                let key = Self::generate_random_hex(32);
+                eprintln!("⚠️  CFGY_MASTER_KEY не задан — сгенерирован автоматически (данные не будут расшифрованы после перезапуска!)");
+                eprintln!("    Сохраните в .env или переменные окружения:");
+                eprintln!("    CFGY_MASTER_KEY={}", key);
+                key
+            }
+        };
+
+        let jwt_secret = match std::env::var("CFGY_JWT_SECRET") {
+            Ok(s) if !s.is_empty() => s,
+            _ => {
+                let secret = Self::generate_random_hex(32);
+                eprintln!("⚠️  CFGY_JWT_SECRET не задан — сгенерирован автоматически (сессии сбросятся после перезапуска)");
+                eprintln!("    Сохраните в .env или переменные окружения:");
+                eprintln!("    CFGY_JWT_SECRET={}", secret);
+                secret
+            }
+        };
+
         let config = Config {
             database: DatabaseConfig {
                 url: std::env::var("DATABASE_URL").unwrap_or_else(|_| {
@@ -89,10 +120,8 @@ impl Config {
                     .unwrap_or(8080),
             },
             crypto: CryptoConfig {
-                master_key: std::env::var("CFGY_MASTER_KEY")
-                    .unwrap_or_else(|_| "default-master-key-change-in-production".to_string()),
-                jwt_secret: std::env::var("CFGY_JWT_SECRET")
-                    .unwrap_or_else(|_| "default-jwt-secret-change-in-production".to_string()),
+                master_key,
+                jwt_secret,
             },
             zid: ZidConfig {
                 issuer: std::env::var("ZID_ISSUER")
@@ -114,38 +143,21 @@ impl Config {
     }
 
     /// Валидация конфигурации
-    ///
-    /// Проверяет секреты и выдает предупреждения, но не блокирует запуск.
-    /// Для домашнего использования дефолтные значения допустимы.
     pub fn validate(&self) -> Result<(), String> {
-        const DEFAULT_MASTER_KEY: &str = "default-master-key-change-in-production";
-        const DEFAULT_JWT_SECRET: &str = "default-jwt-secret-change-in-production";
         const MIN_MASTER_KEY_LEN: usize = 32;
         const MIN_JWT_SECRET_LEN: usize = 16;
 
-        // Проверка master_key
-        if self.crypto.master_key == DEFAULT_MASTER_KEY {
+        if self.crypto.master_key.len() < MIN_MASTER_KEY_LEN {
             eprintln!(
-                "⚠️  ВНИМАНИЕ: Используется дефолтный CFGY_MASTER_KEY. \
-                Рекомендуется установить переменную окружения CFGY_MASTER_KEY для безопасности"
-            );
-        } else if self.crypto.master_key.len() < MIN_MASTER_KEY_LEN {
-            eprintln!(
-                "⚠️  ВНИМАНИЕ: CFGY_MASTER_KEY слишком короткий ({} символов, рекомендуется минимум {})",
+                "⚠️  CFGY_MASTER_KEY слишком короткий ({} символов, минимум {})",
                 self.crypto.master_key.len(),
                 MIN_MASTER_KEY_LEN
             );
         }
 
-        // Проверка jwt_secret
-        if self.crypto.jwt_secret == DEFAULT_JWT_SECRET {
+        if self.crypto.jwt_secret.len() < MIN_JWT_SECRET_LEN {
             eprintln!(
-                "⚠️  ВНИМАНИЕ: Используется дефолтный CFGY_JWT_SECRET. \
-                Рекомендуется установить переменную окружения CFGY_JWT_SECRET для безопасности"
-            );
-        } else if self.crypto.jwt_secret.len() < MIN_JWT_SECRET_LEN {
-            eprintln!(
-                "⚠️  ВНИМАНИЕ: CFGY_JWT_SECRET слишком короткий ({} символов, рекомендуется минимум {})",
+                "⚠️  CFGY_JWT_SECRET слишком короткий ({} символов, минимум {})",
                 self.crypto.jwt_secret.len(),
                 MIN_JWT_SECRET_LEN
             );
@@ -166,10 +178,11 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
+        // Default вызывается только как fallback при ошибке load(),
+        // поэтому тоже генерируем ключи автоматически
         Self {
             database: DatabaseConfig {
                 url: "postgres://postgres:postgres@localhost:5432/cfgy".to_string(),
-                // Увеличено значение по умолчанию для предотвращения таймаутов
                 max_connections: 20,
             },
             server: ServerConfig {
@@ -177,21 +190,17 @@ impl Default for Config {
                 port: 8080,
             },
             crypto: CryptoConfig {
-                master_key: std::env::var("CFGY_MASTER_KEY")
-                    .unwrap_or_else(|_| "default-master-key-change-in-production".to_string()),
-                jwt_secret: std::env::var("CFGY_JWT_SECRET")
-                    .unwrap_or_else(|_| "default-jwt-secret-change-in-production".to_string()),
+                master_key: Self::generate_random_hex(32),
+                jwt_secret: Self::generate_random_hex(32),
             },
             zid: ZidConfig {
-                issuer: std::env::var("ZID_ISSUER")
-                    .unwrap_or_else(|_| "http://localhost:5555".to_string()),
-                base_url: std::env::var("ZID_BASE_URL").ok().filter(|s| !s.is_empty()),
-                client_id: std::env::var("ZID_CLIENT_ID").unwrap_or_default(),
-                client_secret: std::env::var("ZID_CLIENT_SECRET").unwrap_or_default(),
-                redirect_uri: std::env::var("ZID_REDIRECT_URI")
-                    .unwrap_or_else(|_| "http://localhost:5173/auth/zid/callback".to_string()),
-                tls_insecure: Self::parse_bool_env("ZID_TLS_INSECURE"),
-                ca_file: std::env::var("ZID_CA_FILE").ok().filter(|s| !s.is_empty()),
+                issuer: "http://localhost:5555".to_string(),
+                base_url: None,
+                client_id: String::new(),
+                client_secret: String::new(),
+                redirect_uri: "http://localhost:5173/auth/zid/callback".to_string(),
+                tls_insecure: false,
+                ca_file: None,
             },
         }
     }

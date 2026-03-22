@@ -290,6 +290,131 @@ impl ApiClient {
         }
     }
 
+    /// Регистрация нового пользователя. Возвращает session_token.
+    pub async fn register(&self, email: &str, password: &str) -> Result<String> {
+        let url = format!("{}/api/auth/register", self.base_url);
+        let response = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!({"email": email, "password": password}))
+            .send()
+            .await
+            .context("Не удалось отправить запрос на регистрацию")?;
+
+        let status = response.status();
+        if status.is_success() {
+            let body: serde_json::Value = response.json().await?;
+            body["session_token"]
+                .as_str()
+                .map(|s| s.to_string())
+                .ok_or_else(|| anyhow::anyhow!("Сервер не вернул session_token"))
+        } else {
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
+            anyhow::bail!("Ошибка регистрации: {}", error.error);
+        }
+    }
+
+    /// Логин. Возвращает session_token.
+    pub async fn login(&self, email: &str, password: &str) -> Result<String> {
+        let url = format!("{}/api/auth/login", self.base_url);
+        let response = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!({"email": email, "password": password}))
+            .send()
+            .await
+            .context("Не удалось отправить запрос на логин")?;
+
+        let status = response.status();
+        if status.is_success() {
+            let body: serde_json::Value = response.json().await?;
+            body["session_token"]
+                .as_str()
+                .map(|s| s.to_string())
+                .ok_or_else(|| anyhow::anyhow!("Сервер не вернул session_token"))
+        } else {
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
+            anyhow::bail!("Ошибка логина: {}", error.error);
+        }
+    }
+
+    /// Создать конфигурацию (environment) в проекте
+    pub async fn create_configuration(&self, project_id: Uuid, name: &str) -> Result<()> {
+        let url = format!(
+            "{}/api/projects/{}/configurations",
+            self.base_url, project_id
+        );
+        let response = self
+            .client
+            .post(&url)
+            .headers(self.headers()?)
+            .json(&serde_json::json!({"name": name}))
+            .send()
+            .await
+            .context("Не удалось создать конфигурацию")?;
+
+        let status = response.status();
+        if status.is_success() {
+            Ok(())
+        } else {
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
+            anyhow::bail!("Ошибка создания конфигурации: {}", error.error);
+        }
+    }
+
+    /// Создать API-токен. Возвращает (token_string, token_id).
+    pub async fn create_api_token(&self, name: &str, expires_in_days: Option<u32>) -> Result<String> {
+        let url = format!("{}/api/tokens", self.base_url);
+        let response = self
+            .client
+            .post(&url)
+            .headers(self.headers()?)
+            .json(&serde_json::json!({
+                "name": name,
+                "expires_in_days": expires_in_days,
+            }))
+            .send()
+            .await
+            .context("Не удалось создать API токен")?;
+
+        let status = response.status();
+        if status.is_success() {
+            let body: serde_json::Value = response.json().await?;
+            body["token"]
+                .as_str()
+                .map(|s| s.to_string())
+                .ok_or_else(|| anyhow::anyhow!("Сервер не вернул token"))
+        } else {
+            let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
+                error: format!("HTTP {}", status),
+            });
+            anyhow::bail!("Ошибка создания токена: {}", error.error);
+        }
+    }
+
+    /// Проверить доступность сервера
+    pub async fn health_check(&self) -> Result<()> {
+        let url = format!("{}/health", self.base_url);
+        let response = self
+            .client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+            .context("Сервер недоступен")?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            anyhow::bail!("Сервер вернул статус {}", response.status());
+        }
+    }
+
     /// Удалить секрет для окружения
     pub async fn delete_secret(&self, project_id: Uuid, env_name: &str, key: &str) -> Result<()> {
         // Используем path параметр для ключа

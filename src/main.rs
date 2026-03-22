@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Serve => server::run_server().await,
+        Commands::Setup { server } => setup_wizard(server).await,
         Commands::Init {
             project,
             configuration,
@@ -710,6 +711,164 @@ async fn config_show(app_config: &AppConfig) -> Result<()> {
     } else {
         println!("token: не установлен");
     }
+    Ok(())
+}
+
+async fn setup_wizard(server_url: String) -> Result<()> {
+    use cli::client::ApiClient;
+
+    println!("=== CFGY Setup ===");
+    println!();
+
+    // 1. Проверить сервер
+    let client = ApiClient::new(server_url.clone(), None);
+    print!("Проверка сервера {}... ", server_url);
+    io::stdout().flush()?;
+    client
+        .health_check()
+        .await
+        .context(format!("Сервер {} недоступен. Убедитесь, что cfgy serve запущен.", server_url))?;
+    println!("OK");
+    println!();
+
+    // 2. Регистрация или логин
+    println!("Регистрация нового пользователя или вход в существующий аккаунт.");
+    println!();
+
+    print!("Email: ");
+    io::stdout().flush()?;
+    let mut email = String::new();
+    io::stdin().read_line(&mut email)?;
+    let email = email.trim().to_string();
+    if email.is_empty() {
+        anyhow::bail!("Email не может быть пустым");
+    }
+
+    print!("Пароль (мин. 8 символов): ");
+    io::stdout().flush()?;
+    let mut password = String::new();
+    io::stdin().read_line(&mut password)?;
+    let password = password.trim().to_string();
+    if password.len() < 8 {
+        anyhow::bail!("Пароль должен быть не менее 8 символов");
+    }
+
+    // Пробуем зарегистрировать, если не получится — логин
+    let session_token = match client.register(&email, &password).await {
+        Ok(token) => {
+            println!("✓ Пользователь зарегистрирован");
+            token
+        }
+        Err(_) => {
+            // Пользователь уже существует — пробуем логин
+            let token = client
+                .login(&email, &password)
+                .await
+                .context("Не удалось войти. Проверьте email и пароль.")?;
+            println!("✓ Вход выполнен");
+            token
+        }
+    };
+    println!();
+
+    // 3. Создать API-токен
+    let authed_client = ApiClient::new(server_url.clone(), Some(session_token));
+    let api_token = authed_client
+        .create_api_token("cli", None)
+        .await
+        .context("Не удалось создать API токен")?;
+    println!("✓ API токен создан");
+
+    // 4. Сохранить ~/.cfgy/config.yaml
+    let config_path = cli::config::config_file_path()
+        .ok_or_else(|| anyhow::anyhow!("HOME не задан"))?;
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let yaml_content = format!(
+        "server_url: {}\ntoken: {}\n",
+        server_url, api_token
+    );
+    std::fs::write(&config_path, &yaml_content)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&config_path)?.permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(&config_path, perms)?;
+    }
+
+    println!("✓ Конфиг сохранён: {}", config_path.display());
+    println!();
+
+    // 5. Создать проект (имя по умолчанию — текущая директория)
+    let token_client = ApiClient::new(server_url.clone(), Some(api_token.clone()));
+
+    let default_project = std::env::current_dir()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+        .unwrap_or_else(|| "default".to_string());
+
+    print!("Имя проекта [{}]: ", default_project);
+    io::stdout().flush()?;
+    let mut project_name = String::new();
+    io::stdin().read_line(&mut project_name)?;
+    let project_name = project_name.trim();
+    let project_name = if project_name.is_empty() {
+        default_project
+    } else {
+        project_name.to_string()
+    };
+
+    // Проверим, может проект уже существует
+    let project = match token_client.find_project_by_name(&project_name).await {
+        Ok(p) => {
+            println!("✓ Проект '{}' уже существует", project_name);
+            p
+        }
+        Err(_) => {
+            let p = token_client
+                .create_project(project_name.clone(), None)
+                .await?;
+            println!("✓ Проект '{}' создан", project_name);
+            p
+        }
+    };
+
+    // 6. Создать конфигурацию dev
+    let configuration = "dev";
+    match token_client
+        .create_configuration(project.id, configuration)
+        .await
+    {
+        Ok(()) => println!("✓ Конфигурация '{}' создана", configuration),
+        Err(_) => println!("  Конфигурация '{}' уже существует", configuration),
+    }
+
+    // 7. Сохранить cfgy.yaml
+    let cfgy_yaml_path = cli::storage::ProjectConfig::config_path_in_current_dir()?;
+    let mut project_config = cli::storage::ProjectConfig::load_or_default(cfgy_yaml_path.clone())?;
+    project_config.init(project_name.clone(), Some(configuration.to_string()), &cfgy_yaml_path)?;
+    println!("✓ Проект инициализирован: {}", cfgy_yaml_path.display());
+
+    // Итог
+    println!();
+    println!("=== Готово! ===");
+    println!();
+    println!("Добавьте параметры:");
+    println!("  cfgy set DB_HOST localhost");
+    println!("  cfgy set DB_PORT 5432");
+    println!();
+    println!("Запустите приложение с параметрами из cfgy:");
+    println!("  cfgy run -- your-app");
+    println!();
+    println!("Другие команды:");
+    println!("  cfgy list              # показать все параметры");
+    println!("  cfgy use staging       # переключить конфигурацию");
+    println!("  cfgy env -o .env       # экспорт в .env файл");
+
     Ok(())
 }
 

@@ -103,6 +103,12 @@ pub enum Commands {
         #[arg(short, long, default_value = "env")]
         format: String,
     },
+    /// Быстрая настройка CLI: регистрация/логин → проект → API токен → config
+    Setup {
+        /// URL сервера CFGY
+        #[arg(short, long, default_value = "http://localhost:8080")]
+        server: String,
+    },
     /// Запустить HTTP сервер CFGY
     Serve,
     /// Скрипты автодополнения (generate в stdout или install в стандартные каталоги)
