@@ -21,4 +21,5 @@ target
 #.idea/
 
 .env
-zid
+freebsd/cfgy_server.conf
+
