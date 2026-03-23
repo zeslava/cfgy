@@ -25,13 +25,13 @@ pub async fn run_server() -> anyhow::Result<()> {
         use tracing_subscriber::EnvFilter;
         tracing_subscriber::fmt()
             .json()
-            .with_env_filter(EnvFilter::from_default_env())
+            .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
             .init();
         eprintln!("[1/7] ✓ Логирование инициализировано (JSON формат)");
     } else {
         use tracing_subscriber::EnvFilter;
         tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
+            .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
             .init();
         eprintln!("[1/7] ✓ Логирование инициализировано (человекочитаемый формат)");
     }
