@@ -1,21 +1,12 @@
 FROM 15.0-RELEASE
 
 COPY target/release/cfgy /usr/local/bin/cfgy
-COPY web/build /var/lib/cfgy_server/web/build
-COPY freebsd/cfgy_server /usr/local/etc/rc.d/cfgy_server
-COPY freebsd/cfgy_server.conf /usr/local/etc/cfgy_server/cfgy_server.conf
+COPY web/build /usr/local/share/cfgy_server/web/build
 
 SERVICE cfgy_server
+CMD cfgy serve
 
-RUN chmod 0555 /usr/local/etc/rc.d/cfgy_server
-RUN chmod 0750 /usr/local/etc/cfgy_server
-RUN chown root:cfgy_server /usr/local/etc/cfgy_server
-RUN chmod 0640 /usr/local/etc/cfgy_server/cfgy_server.conf
-RUN chown root:cfgy_server /usr/local/etc/cfgy_server/cfgy_server.conf
-
-ENV CFGY_WEB_ROOT=/var/lib/cfgy_server/web/build
+ENV CFGY_WEB_ROOT=/usr/local/share/cfgy_server/web/build
 ENV RUST_LOG=info
 
-LOG /var/log/cfgy_server/cfgy_server.log
 EXPOSE 8080
-PARAM persist=true
