@@ -13,7 +13,7 @@
   let error = $state("");
   let isLoading = $state(false);
 
-  // Ошибка из query (редирект после неудачного входа через ZID)
+  // Ошибка из query (редирект после неудачного входа через OIDC)
   $effect(() => {
     const errorFromUrl = page.url.searchParams.get("error");
     if (errorFromUrl) {
@@ -32,8 +32,8 @@
     if ($user) goto("/projects", { replaceState: true });
   });
 
-  function handleZidLogin() {
-    window.location.href = "/oauth/zid/login?next=/projects";
+  function handleOidcLogin() {
+    window.location.href = "/oauth/oidc/login?next=/projects";
   }
 
   async function handleSubmit(e: Event) {
@@ -116,9 +116,9 @@
             variant="basic-secondary"
             size="big-text"
             disabled={isLoading}
-            onclick={handleZidLogin}
+            onclick={handleOidcLogin}
           >
-            Войти через ZID
+            Войти через SSO
           </Button>
         </form>
       </div>

@@ -9,7 +9,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub server: ServerConfig,
     pub crypto: CryptoConfig,
-    pub zid: ZidConfig,
+    pub oidc: OidcConfig,
 }
 
 /// Конфигурация базы данных
@@ -26,39 +26,58 @@ pub struct ServerConfig {
     pub port: u16,
 }
 
-/// Конфигурация интеграции с ZID (OAuth 2.0 / OIDC для Web UI)
+/// Конфигурация OIDC-провайдера (OAuth 2.0 / OIDC для Web UI).
+/// Работает с любым OIDC-совместимым провайдером: ZID, Keycloak, Auth0, Authentik и т.д.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZidConfig {
-    /// Публичный URL ZID (issuer) — используется для редиректов в браузере (страница входа ZID).
+pub struct OidcConfig {
+    /// Публичный URL провайдера (issuer) — используется для редиректов в браузере.
     /// Должен быть доступен с клиента пользователя.
+    /// Env: OIDC_ISSUER (fallback: ZID_ISSUER)
     pub issuer: String,
 
-    /// URL ZID для запросов с бэкенда (discovery, обмен code на токен, userinfo).
-    /// Если задан ZID_BASE_URL — бэкенд ходит по нему; иначе используется issuer.
-    /// Удобно, когда с сервера ZID доступен по внутреннему адресу (например Tailscale).
+    /// URL провайдера для запросов с бэкенда (discovery, обмен code на токен, userinfo).
+    /// Если задан — бэкенд ходит по нему; иначе используется issuer.
+    /// Удобно, когда с сервера провайдер доступен по внутреннему адресу (например Tailscale).
+    /// Env: OIDC_BASE_URL (fallback: ZID_BASE_URL)
     #[serde(default)]
     pub base_url: Option<String>,
 
-    /// client_id, выданный для этого приложения в ZID (oidc_clients и т.п.)
+    /// client_id приложения в OIDC-провайдере.
+    /// Env: OIDC_CLIENT_ID (fallback: ZID_CLIENT_ID)
     pub client_id: String,
 
-    /// client_secret для confidential client
+    /// client_secret для confidential client.
+    /// Env: OIDC_CLIENT_SECRET (fallback: ZID_CLIENT_SECRET)
     pub client_secret: String,
 
-    /// Полный callback URL (redirect_uri). Должен побайтово совпадать с redirect_uris в ZID.
-    /// Например: https://our-app.com/auth/zid/callback или http://localhost:5173/auth/zid/callback
+    /// Полный callback URL (redirect_uri). Должен побайтово совпадать с redirect_uris в провайдере.
+    /// Env: OIDC_REDIRECT_URI (fallback: ZID_REDIRECT_URI)
     pub redirect_uri: String,
 
-    /// Не проверять TLS-сертификат при запросах к ZID (1/true/yes).
-    /// Только для внутренних/домашних установок (Tailscale, self-signed). В production не использовать.
+    /// Не проверять TLS-сертификат при запросах к провайдеру (1/true/yes).
+    /// Только для внутренних/домашних установок (self-signed). В production не использовать.
+    /// Env: OIDC_TLS_INSECURE (fallback: ZID_TLS_INSECURE)
     #[serde(default)]
     pub tls_insecure: bool,
 
     /// Путь к PEM-файлу с доверенным CA (корневой или промежуточный сертификат).
-    /// Для ZID с сертификатом от Tailscale: положите корневой CA Tailscale в файл и укажите путь (например /etc/ssl/tailscale-ca.pem).
-    /// Предпочтительнее ZID_TLS_INSECURE, т.к. проверка TLS остаётся включённой.
+    /// Предпочтительнее OIDC_TLS_INSECURE, т.к. проверка TLS остаётся включённой.
+    /// Env: OIDC_CA_FILE (fallback: ZID_CA_FILE)
     #[serde(default)]
     pub ca_file: Option<String>,
+
+    /// URL фронтенда для редиректа после успешного входа.
+    /// Нужен только если OIDC_REDIRECT_URI ведёт на бэкенд (8080), а SPA на другом порту.
+    /// Env: CFGY_FRONTEND_URL
+    #[serde(default)]
+    pub frontend_url: Option<String>,
+
+    /// Идентификатор провайдера, сохраняемый в external_identities.provider.
+    /// Менять только если нужно различать несколько провайдеров в одной БД.
+    /// ⚠ Существующие пользователи ZID имеют provider='zid' в БД — задайте OIDC_PROVIDER_NAME=zid
+    ///   если мигрируете с предыдущей версии и хотите сохранить привязку.
+    /// Env: OIDC_PROVIDER_NAME (default: "oidc")
+    pub provider: String,
 }
 
 /// Конфигурация криптографии
@@ -74,17 +93,35 @@ impl Config {
         use ring::rand::{SecureRandom, SystemRandom};
         let rng = SystemRandom::new();
         let mut buf = vec![0u8; len];
-        rng.fill(&mut buf).expect("Не удалось сгенерировать случайные байты");
+        rng.fill(&mut buf)
+            .expect("Не удалось сгенерировать случайные байты");
         hex::encode(&buf)
     }
 
     /// Загрузить конфигурацию из переменных окружения
     pub fn load() -> Result<Self, String> {
+        // Читать OIDC_* с fallback на ZID_* для обратной совместимости
+        let oidc_or_zid = |oidc: &str, zid: &str| -> Option<String> {
+            std::env::var(oidc)
+                .ok()
+                .filter(|s| !s.is_empty())
+                .or_else(|| std::env::var(zid).ok().filter(|s| !s.is_empty()))
+        };
+        // Для bool: если OIDC_* задан (любое значение), берём его; иначе — fallback на ZID_*.
+        // Иначе явный OIDC_*=false не сможет перекрыть старый ZID_*=true.
+        let oidc_or_zid_bool = |oidc: &str, zid: &str| -> bool {
+            match std::env::var(oidc) {
+                Ok(v) if !v.is_empty() => Self::parse_bool_env(oidc),
+                _ => Self::parse_bool_env(zid),
+            }
+        };
         let master_key = match std::env::var("CFGY_MASTER_KEY") {
             Ok(k) if !k.is_empty() => k,
             _ => {
                 let key = Self::generate_random_hex(32);
-                eprintln!("⚠️  CFGY_MASTER_KEY не задан — сгенерирован автоматически (данные не будут расшифрованы после перезапуска!)");
+                eprintln!(
+                    "⚠️  CFGY_MASTER_KEY не задан — сгенерирован автоматически (данные не будут расшифрованы после перезапуска!)"
+                );
                 eprintln!("    Сохраните в .env или переменные окружения:");
                 eprintln!("    CFGY_MASTER_KEY={}", key);
                 key
@@ -95,7 +132,9 @@ impl Config {
             Ok(s) if !s.is_empty() => s,
             _ => {
                 let secret = Self::generate_random_hex(32);
-                eprintln!("⚠️  CFGY_JWT_SECRET не задан — сгенерирован автоматически (сессии сбросятся после перезапуска)");
+                eprintln!(
+                    "⚠️  CFGY_JWT_SECRET не задан — сгенерирован автоматически (сессии сбросятся после перезапуска)"
+                );
                 eprintln!("    Сохраните в .env или переменные окружения:");
                 eprintln!("    CFGY_JWT_SECRET={}", secret);
                 secret
@@ -123,16 +162,24 @@ impl Config {
                 master_key,
                 jwt_secret,
             },
-            zid: ZidConfig {
-                issuer: std::env::var("ZID_ISSUER")
-                    .unwrap_or_else(|_| "http://localhost:5555".to_string()),
-                base_url: std::env::var("ZID_BASE_URL").ok().filter(|s| !s.is_empty()),
-                client_id: std::env::var("ZID_CLIENT_ID").unwrap_or_default(),
-                client_secret: std::env::var("ZID_CLIENT_SECRET").unwrap_or_default(),
-                redirect_uri: std::env::var("ZID_REDIRECT_URI")
-                    .unwrap_or_else(|_| "http://localhost:5173/auth/zid/callback".to_string()),
-                tls_insecure: Self::parse_bool_env("ZID_TLS_INSECURE"),
-                ca_file: std::env::var("ZID_CA_FILE").ok().filter(|s| !s.is_empty()),
+            oidc: OidcConfig {
+                issuer: oidc_or_zid("OIDC_ISSUER", "ZID_ISSUER")
+                    .unwrap_or_else(|| "http://localhost:5555".to_string()),
+                base_url: oidc_or_zid("OIDC_BASE_URL", "ZID_BASE_URL"),
+                client_id: oidc_or_zid("OIDC_CLIENT_ID", "ZID_CLIENT_ID").unwrap_or_default(),
+                client_secret: oidc_or_zid("OIDC_CLIENT_SECRET", "ZID_CLIENT_SECRET")
+                    .unwrap_or_default(),
+                redirect_uri: oidc_or_zid("OIDC_REDIRECT_URI", "ZID_REDIRECT_URI")
+                    .unwrap_or_else(|| "http://localhost:5173/auth/oidc/callback".to_string()),
+                tls_insecure: oidc_or_zid_bool("OIDC_TLS_INSECURE", "ZID_TLS_INSECURE"),
+                ca_file: oidc_or_zid("OIDC_CA_FILE", "ZID_CA_FILE"),
+                frontend_url: std::env::var("CFGY_FRONTEND_URL")
+                    .ok()
+                    .filter(|s| !s.is_empty()),
+                provider: std::env::var("OIDC_PROVIDER_NAME")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "oidc".to_string()),
             },
         };
 
@@ -193,14 +240,16 @@ impl Default for Config {
                 master_key: Self::generate_random_hex(32),
                 jwt_secret: Self::generate_random_hex(32),
             },
-            zid: ZidConfig {
+            oidc: OidcConfig {
                 issuer: "http://localhost:5555".to_string(),
                 base_url: None,
                 client_id: String::new(),
                 client_secret: String::new(),
-                redirect_uri: "http://localhost:5173/auth/zid/callback".to_string(),
+                redirect_uri: "http://localhost:5173/auth/oidc/callback".to_string(),
                 tls_insecure: false,
                 ca_file: None,
+                frontend_url: None,
+                provider: "oidc".to_string(),
             },
         }
     }
