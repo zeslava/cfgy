@@ -20,6 +20,17 @@
 	let newKey = $state('');
 	let newValue = $state('');
 	let deleteConfirm = $state<string | null>(null);
+	let editKey = $state<string | null>(null);
+	let editValue = $state('');
+	let revealed = $state<Record<string, boolean>>({});
+
+	$effect(() => {
+		if (editKey) {
+			tick().then(() => {
+				document.getElementById('edit-param-value')?.focus();
+			});
+		}
+	});
 
 	$effect(() => {
 		if (showAddForm) {
@@ -65,6 +76,29 @@
 			newValue = '';
 			showAddForm = false;
 			toastStore.showSuccess('Параметр добавлен');
+			await loadData();
+		} catch (err) {
+			toastStore.showError(err instanceof Error ? err.message : 'Ошибка');
+		}
+	}
+
+	function startEdit(key: string, value: string) {
+		editKey = key;
+		editValue = value;
+	}
+
+	function cancelEdit() {
+		editKey = null;
+		editValue = '';
+	}
+
+	async function handleEditSubmit(e: Event) {
+		e.preventDefault();
+		if (!id || !configuration || !editKey) return;
+		try {
+			await parametersApi.set(id, configuration.name, [{ key: editKey, value: editValue }]);
+			cancelEdit();
+			toastStore.showSuccess('Параметр обновлён');
 			await loadData();
 		} catch (err) {
 			toastStore.showError(err instanceof Error ? err.message : 'Ошибка');
@@ -132,7 +166,25 @@
 				{#each parameters as param (param.key)}
 					<div class="projects-row">
 						<span class="projects-item-link" style="pointer-events:none;">{param.key}</span>
-						<span class="text-regular-16 overflow-ellipsis" style="flex:1;min-width:0;">{param.value ? '••••••' : '(пусто)'}</span>
+						{#if editKey === param.key}
+							<form onsubmit={handleEditSubmit} class="flex gap-2 items-center" style="flex:1;min-width:0;">
+								<Input id="edit-param-value" bind:value={editValue} placeholder="Значение" className="flex-1" />
+								<Button type="submit" variant="basic-accent" size="small-text">Сохранить</Button>
+								<Button type="button" variant="basic-secondary" size="small-text" onclick={cancelEdit}>Отмена</Button>
+							</form>
+						{:else}
+							<button
+								type="button"
+								class="text-regular-16 overflow-ellipsis text-left cursor-pointer"
+								style="flex:1;min-width:0;background:none;border:none;"
+								onclick={() => (revealed[param.key] = !revealed[param.key])}
+							>
+								{#if !param.value}(пусто){:else if revealed[param.key]}{param.value}{:else}••••••{/if}
+							</button>
+							<Button variant="basic-secondary" size="small-icon" onclick={() => startEdit(param.key, param.value)} aria-label="Редактировать">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+							</Button>
+						{/if}
 						<Button variant="basic-secondary" size="small-icon" onclick={() => handleDelete(param.key)} aria-label="Удалить">
 							<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
 						</Button>
