@@ -724,10 +724,10 @@ async fn setup_wizard(server_url: String) -> Result<()> {
     let client = ApiClient::new(server_url.clone(), None);
     print!("Проверка сервера {}... ", server_url);
     io::stdout().flush()?;
-    client
-        .health_check()
-        .await
-        .context(format!("Сервер {} недоступен. Убедитесь, что cfgy serve запущен.", server_url))?;
+    client.health_check().await.context(format!(
+        "Сервер {} недоступен. Убедитесь, что cfgy serve запущен.",
+        server_url
+    ))?;
     println!("OK");
     println!();
 
@@ -780,16 +780,13 @@ async fn setup_wizard(server_url: String) -> Result<()> {
     println!("✓ API токен создан");
 
     // 4. Сохранить ~/.cfgy/config.yaml
-    let config_path = cli::config::config_file_path()
-        .ok_or_else(|| anyhow::anyhow!("HOME не задан"))?;
+    let config_path =
+        cli::config::config_file_path().ok_or_else(|| anyhow::anyhow!("HOME не задан"))?;
     if let Some(parent) = config_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
-    let yaml_content = format!(
-        "server_url: {}\ntoken: {}\n",
-        server_url, api_token
-    );
+    let yaml_content = format!("server_url: {}\ntoken: {}\n", server_url, api_token);
     std::fs::write(&config_path, &yaml_content)?;
 
     #[cfg(unix)]
@@ -850,7 +847,11 @@ async fn setup_wizard(server_url: String) -> Result<()> {
     // 7. Сохранить cfgy.yaml
     let cfgy_yaml_path = cli::storage::ProjectConfig::config_path_in_current_dir()?;
     let mut project_config = cli::storage::ProjectConfig::load_or_default(cfgy_yaml_path.clone())?;
-    project_config.init(project_name.clone(), Some(configuration.to_string()), &cfgy_yaml_path)?;
+    project_config.init(
+        project_name.clone(),
+        Some(configuration.to_string()),
+        &cfgy_yaml_path,
+    )?;
     println!("✓ Проект инициализирован: {}", cfgy_yaml_path.display());
 
     // Итог

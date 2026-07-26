@@ -63,12 +63,19 @@ pub enum Commands {
         format: String,
     },
     /// Вывод параметров в формате .env (для дампа в файл или docker --env-file)
+    #[command(after_help = "Примеры:
+  cfgy env                                  вывод в stdout
+  cfgy env -o                               записать в .env
+  cfgy env -o prod.env                      записать в указанный файл
+  cfgy env -c production -o .env.prod       конкретная configuration
+  docker run --env-file <(cfgy env) myimg   передать напрямую в docker (bash/zsh)
+  source <(cfgy env | sed 's/^/export /')   экспорт в текущий shell")]
     Env {
         /// Configuration (если не указана — берётся из cfgy.yaml)
         #[arg(short, long)]
         configuration: Option<String>,
         /// Записать в файл вместо stdout (без значения — в .env, иначе в указанный файл)
-        #[arg(short, long, default_missing_value = ".env")]
+        #[arg(short, long, num_args = 0..=1, default_missing_value = ".env")]
         output: Option<PathBuf>,
     },
     /// Удалить конфиг

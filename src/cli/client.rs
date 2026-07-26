@@ -369,7 +369,11 @@ impl ApiClient {
     }
 
     /// Создать API-токен. Возвращает (token_string, token_id).
-    pub async fn create_api_token(&self, name: &str, expires_in_days: Option<u32>) -> Result<String> {
+    pub async fn create_api_token(
+        &self,
+        name: &str,
+        expires_in_days: Option<u32>,
+    ) -> Result<String> {
         let url = format!("{}/api/tokens", self.base_url);
         let response = self
             .client

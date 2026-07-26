@@ -1,5 +1,5 @@
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -13,15 +13,13 @@ struct SharedAuth {
 static AUTH: OnceLock<SharedAuth> = OnceLock::new();
 
 fn shared_auth() -> &'static SharedAuth {
-    AUTH.get().expect("shared auth not initialized — run e2e_setup first")
+    AUTH.get()
+        .expect("shared auth not initialized — run e2e_setup first")
 }
 
 fn auth_headers(token: &str) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        "Authorization",
-        format!("Bearer {token}").parse().unwrap(),
-    );
+    headers.insert("Authorization", format!("Bearer {token}").parse().unwrap());
     headers
 }
 
@@ -333,12 +331,7 @@ async fn e2e_parameters() {
     assert!(resp.status().is_success());
 
     // Get and verify
-    let resp = c
-        .get(&params_url)
-        .headers(h.clone())
-        .send()
-        .await
-        .unwrap();
+    let resp = c.get(&params_url).headers(h.clone()).send().await.unwrap();
     assert_eq!(resp.status(), 200);
     let params: Value = resp.json().await.unwrap();
     assert_eq!(params["DB_HOST"].as_str().unwrap(), "db.local");
@@ -355,12 +348,7 @@ async fn e2e_parameters() {
         .unwrap();
     assert!(resp.status().is_success());
 
-    let resp = c
-        .get(&params_url)
-        .headers(h.clone())
-        .send()
-        .await
-        .unwrap();
+    let resp = c.get(&params_url).headers(h.clone()).send().await.unwrap();
     let params: Value = resp.json().await.unwrap();
     assert_eq!(params["LOG_LEVEL"].as_str().unwrap(), "info");
 
@@ -373,12 +361,7 @@ async fn e2e_parameters() {
         .unwrap();
     assert!(resp.status().is_success());
 
-    let resp = c
-        .get(&params_url)
-        .headers(h.clone())
-        .send()
-        .await
-        .unwrap();
+    let resp = c.get(&params_url).headers(h.clone()).send().await.unwrap();
     let params: Value = resp.json().await.unwrap();
     assert!(params.get("SECRET").is_none());
 
@@ -430,11 +413,13 @@ async fn e2e_api_tokens() {
         .unwrap();
     assert_eq!(resp.status(), 200);
     let tokens: Value = resp.json().await.unwrap();
-    assert!(tokens
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|t| t["id"] == token_id.as_str()));
+    assert!(
+        tokens
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["id"] == token_id.as_str())
+    );
 
     // Delete token
     let resp = c
