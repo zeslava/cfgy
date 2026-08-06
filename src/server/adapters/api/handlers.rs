@@ -454,13 +454,13 @@ pub async fn oidc_login(Query(q): Query<OidcLoginQuery>) -> impl IntoResponse {
     let secure = config.oidc.redirect_uri.starts_with("https://");
     let secure_flag = if secure { "; Secure" } else { "" };
     let set_state_cookie = format!(
-        "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300{secure_flag}",
+        "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=900{secure_flag}",
         name = OIDC_STATE_COOKIE_NAME,
         value = state,
         secure_flag = secure_flag
     );
     let set_next_cookie = format!(
-        "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300{secure_flag}",
+        "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=900{secure_flag}",
         name = OIDC_NEXT_COOKIE_NAME,
         value = urlencoding::encode(&next),
         secure_flag = secure_flag
