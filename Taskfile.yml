@@ -39,6 +39,7 @@ tasks:
     desc: Собрать веб в релиз (web/build)
     dir: web
     cmds:
+      - npm ci
       - npm run build
 
   web:
