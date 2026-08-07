@@ -10,7 +10,7 @@
 use axum::{
     body::Body,
     extract::Path,
-    http::{StatusCode, header},
+    http::{StatusCode, Uri, header},
     response::Response,
 };
 use rust_embed::RustEmbed;
@@ -86,7 +86,8 @@ pub async fn serve_app_asset(Path(path): Path<String>) -> Response<Body> {
 }
 
 /// Раздача файлов из корня статики (favicon.svg, logo.svg, robots.txt и т.п.)
-pub async fn serve_root_asset(Path(path): Path<String>) -> Response<Body> {
+pub async fn serve_root_asset(uri: Uri) -> Response<Body> {
+    let path = uri.path().trim_start_matches('/').to_string();
     match read_asset(&path).await {
         Some(body) => respond(&path, body, false),
         None => Response::builder()

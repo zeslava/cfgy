@@ -437,9 +437,14 @@ code {
   gap: 10px;
   font-family: "Inter", sans-serif;
   font-weight: 400;
-  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    background 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
-  border: none;
+  border: 1px solid transparent;
+  box-sizing: border-box;
   cursor: pointer;
 }
 .button:focus {
@@ -474,11 +479,11 @@ code {
 }
 .button-primary-default:hover {
   background: var(--color-basic-accent-hover);
-  border: 1px solid var(--color-lines-accent);
+  border-color: var(--color-lines-accent);
 }
 .button-primary-default:active {
   box-shadow: inset 0px 4px 16px 0px rgba(0, 0, 51, 0.32);
-  border: 1px solid var(--color-text-dark);
+  border-color: var(--color-text-dark);
 }
 .button-primary-disabled {
   background: var(--color-basic-accent-disabled);
@@ -492,11 +497,11 @@ code {
 }
 .button-secondary-default:hover {
   background: var(--color-basic-secondary-hover);
-  border: 1px solid var(--color-lines-accent);
+  border-color: var(--color-lines-accent);
 }
 .button-secondary-default:active {
   box-shadow: inset 0px 4px 16px 0px white;
-  border: 1px solid var(--color-text-dark);
+  border-color: var(--color-text-dark);
 }
 .button-secondary-disabled {
   background: var(--color-states-disable);
