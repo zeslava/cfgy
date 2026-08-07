@@ -49,15 +49,15 @@
 {:else if $user}
 	<div class="flex items-center justify-center min-h-screen">Перенаправление...</div>
 {:else}
-	<div class="register-page">
-		<div class="register-container">
-			<div class="register-logo-wrapper">
-				<img src="/logo.svg" alt="CFGY" class="register-logo" />
+	<div class="auth-page">
+		<div class="auth-container">
+			<div class="auth-logo-wrapper">
+				<img src="/logo.svg" alt="CFGY" class="auth-logo" />
 			</div>
-			<div class="register-form-wrapper">
-				<div class="register-title">Регистрация:</div>
-				<form onsubmit={handleSubmit} class="register-form">
-					<div class="register-inputs">
+			<div class="auth-form-wrapper auth-form-wrapper--start">
+				<div class="auth-title">Регистрация:</div>
+				<form onsubmit={handleSubmit} class="auth-form auth-form--wide">
+					<div class="auth-inputs">
 						<Input
 							type="email"
 							placeholder="Email"

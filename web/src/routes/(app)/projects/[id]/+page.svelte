@@ -95,42 +95,42 @@
 {#if isLoading}
 	<div class="text-center py-8">Загрузка...</div>
 {:else if error || !project}
-	<div class="projects-error">{error || 'Проект не найден'}</div>
+	<div class="page-error">{error || 'Проект не найден'}</div>
 	<a href="/projects" class="text-basic-accent cursor-pointer">К списку проектов</a>
 {:else}
-	<div class="projects-page">
+	<div class="page">
 		<nav class="flex gap-2 mb-4 text-regular-16">
 			<a href="/projects" class="text-basic-accent">Проекты</a>
 			<span>/</span>
 			<span>{project.name}</span>
 		</nav>
-		<div class="projects-header">
-			<h1 class="projects-title">Конфигурации</h1>
+		<div class="page-header">
+			<h1 class="page-title">Конфигурации</h1>
 			<Button variant="basic-secondary" size="big-text" onclick={() => { showCreateForm = true; createError = ''; }}>
 				Добавить конфигурацию
 			</Button>
 		</div>
 
 		{#if showCreateForm}
-			<form onsubmit={handleCreate} class="projects-form">
-				<div class="projects-input-wrapper">
-					<input type="text" bind:value={configName} placeholder="Название конфигурации" class="projects-input" required />
+			<form onsubmit={handleCreate} class="page-form">
+				<div class="page-input-wrapper">
+					<input type="text" bind:value={configName} placeholder="Название конфигурации" class="page-input" required />
 					<Button type="submit" variant="basic-accent" size="small-text">Сохранить</Button>
 				</div>
 			</form>
 			{#if createError}
 				<p class="text-states-error text-regular-16">{createError}</p>
 			{/if}
-			<div class="projects-divider"></div>
+			<div class="page-divider"></div>
 		{/if}
 
-		<div class="projects-list">
+		<div class="list">
 			{#if sortedConfigs.length === 0}
-				<div class="projects-empty">Конфигурации не найдены. Создайте первую.</div>
+				<div class="list-empty">Конфигурации не найдены. Создайте первую.</div>
 			{:else}
 				{#each sortedConfigs as config (config.id)}
-					<div class="projects-row">
-						<a href="/projects/{id}/configurations/{config.id}/parameters" class="projects-item-link">{config.name}</a>
+					<div class="list-row">
+						<a href="/projects/{id}/configurations/{config.id}/parameters" class="list-item">{config.name}</a>
 						<Button
 							variant="basic-secondary"
 							size="small-icon"

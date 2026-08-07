@@ -130,10 +130,10 @@
 {#if isLoading}
 	<div class="text-center py-8">Загрузка...</div>
 {:else if error || !project || !configuration}
-	<div class="projects-error">{error || 'Конфигурация не найдена'}</div>
+	<div class="page-error">{error || 'Конфигурация не найдена'}</div>
 	<a href="/projects/{id}" class="text-basic-accent cursor-pointer">К конфигурациям</a>
 {:else}
-	<div class="projects-page">
+	<div class="page">
 		<nav class="flex gap-2 mb-4 text-regular-16">
 			<a href="/projects" class="text-basic-accent">Проекты</a>
 			<span>/</span>
@@ -141,31 +141,31 @@
 			<span>/</span>
 			<span>{configuration.name}</span>
 		</nav>
-		<div class="projects-header">
-			<h1 class="projects-title">Параметры</h1>
+		<div class="page-header">
+			<h1 class="page-title">Параметры</h1>
 			<Button variant="basic-secondary" size="big-text" onclick={() => (showAddForm = !showAddForm)}>
 				{showAddForm ? 'Отмена' : 'Добавить параметр'}
 			</Button>
 		</div>
 
 		{#if showAddForm}
-			<form onsubmit={handleAdd} class="projects-form">
+			<form onsubmit={handleAdd} class="page-form">
 				<div class="flex gap-2 items-center w-full">
 					<Input id="new-param-key" bind:value={newKey} placeholder="Ключ" className="flex-1" required />
 					<Input bind:value={newValue} placeholder="Значение" className="flex-1" />
 					<Button type="submit" variant="basic-accent" size="small-text">Сохранить</Button>
 				</div>
 			</form>
-			<div class="projects-divider"></div>
+			<div class="page-divider"></div>
 		{/if}
 
-		<div class="projects-list">
+		<div class="list">
 			{#if parameters.length === 0}
-				<div class="projects-empty">Параметры не найдены. Добавьте первый.</div>
+				<div class="list-empty">Параметры не найдены. Добавьте первый.</div>
 			{:else}
 				{#each parameters as param (param.key)}
-					<div class="projects-row">
-						<span class="projects-item-link" style="pointer-events:none;">{param.key}</span>
+					<div class="list-row">
+						<span class="list-item" style="pointer-events:none;">{param.key}</span>
 						{#if editKey === param.key}
 							<form onsubmit={handleEditSubmit} class="flex gap-2 items-center" style="flex:1;min-width:0;">
 								<Input id="edit-param-value" bind:value={editValue} placeholder="Значение" className="flex-1" />

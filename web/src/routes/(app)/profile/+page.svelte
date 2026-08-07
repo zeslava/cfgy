@@ -91,8 +91,8 @@
 	<title>Профиль — CFGY</title>
 </svelte:head>
 
-<div class="projects-page">
-	<h1 class="projects-title">Профиль</h1>
+<div class="page">
+	<h1 class="page-title">Профиль</h1>
 
 	<div class="flex gap-4 items-center mb-6">
 		<Avatar size="big" initials={getInitialsFromEmail($user?.email ?? 'U')} />
@@ -114,13 +114,13 @@
 		<Button variant="basic-secondary" size="big-text" onclick={() => { showCreateForm = true; newToken = null; tokenName = ''; error = ''; }}>
 			Создать токен
 		</Button>
-		<div class="projects-list mt-4">
+		<div class="list mt-4">
 			{#if tokens.length === 0}
-				<div class="projects-empty">Токенов нет. Создайте токен для CLI/CI.</div>
+				<div class="list-empty">Токенов нет. Создайте токен для CLI/CI.</div>
 			{:else}
 				{#each tokens as token (token.id)}
-					<div class="projects-row">
-						<span class="projects-item-link">{token.name}</span>
+					<div class="list-row">
+						<span class="list-item">{token.name}</span>
 						<Button variant="basic-secondary" size="small-icon" onclick={() => handleDelete(token.id, token.name)} aria-label="Удалить токен">
 							<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
 						</Button>

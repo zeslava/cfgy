@@ -54,17 +54,17 @@
 {:else if $user}
 	<div class="flex items-center justify-center min-h-screen">Перенаправление...</div>
 {:else}
-	<div class="login-page">
-		<div class="login-container">
-			<div class="login-logo-wrapper">
-				<img src="/logo.svg" alt="CFGY" class="login-logo" />
+	<div class="auth-page">
+		<div class="auth-container">
+			<div class="auth-logo-wrapper">
+				<img src="/logo.svg" alt="CFGY" class="auth-logo" />
 			</div>
 
-			<div class="login-form-wrapper">
-				<div class="login-title">Создайте новый пароль:</div>
+			<div class="auth-form-wrapper">
+				<div class="auth-title">Создайте новый пароль:</div>
 
-				<form onsubmit={handleSubmit} class="login-form">
-					<div class="login-inputs">
+				<form onsubmit={handleSubmit} class="auth-form">
+					<div class="auth-inputs">
 						<Input
 							type="password"
 							placeholder="Новый пароль"

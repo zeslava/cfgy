@@ -78,9 +78,9 @@
 	<title>Проекты — CFGY</title>
 </svelte:head>
 
-<div class="projects-page">
-	<div class="projects-header">
-		<h1 class="projects-title">Мои проекты</h1>
+<div class="page">
+	<div class="page-header">
+		<h1 class="page-title">Мои проекты</h1>
 		<Button
 			variant="basic-secondary"
 			size="small-text"
@@ -94,18 +94,18 @@
 	</div>
 
 	{#if error && !showCreateForm}
-		<div class="projects-error">Ошибка: {error}</div>
+		<div class="page-error">Ошибка: {error}</div>
 	{/if}
 
 	{#if showCreateForm}
-		<div class="projects-create-wrapper">
-			<form onsubmit={handleCreate} class="projects-form">
-				<div class="projects-input-wrapper">
+		<div class="page-create-wrapper">
+			<form onsubmit={handleCreate} class="page-form">
+				<div class="page-input-wrapper">
 					<input
 						type="text"
 						bind:value={projectName}
 						placeholder="Название проекта"
-						class="projects-input"
+						class="page-input"
 						required
 					/>
 					<Button type="submit" variant="basic-secondary" size="small-icon" aria-label="Создать проект">
@@ -118,20 +118,20 @@
 			{#if createError}
 				<p class="text-states-error text-regular-16">{createError}</p>
 			{/if}
-			<div class="projects-divider"></div>
+			<div class="page-divider"></div>
 		</div>
 	{/if}
 
 	{#if isLoading}
 		<div class="text-center py-8">Загрузка проектов...</div>
 	{:else}
-		<div class="projects-list">
+		<div class="list">
 			{#if sortedProjects.length === 0}
-				<div class="projects-empty">Проекты не найдены. Создайте первый проект.</div>
+				<div class="list-empty">Проекты не найдены. Создайте первый проект.</div>
 			{:else}
 				{#each sortedProjects as project (project.id)}
 					<div
-						class="projects-row"
+						class="list-row"
 						role="button"
 						tabindex="0"
 						onclick={() => goto(`/projects/${project.id}`)}
@@ -139,7 +139,7 @@
 					>
 						<a
 							href="/projects/{project.id}"
-							class="projects-item-link"
+							class="list-item"
 							onclick={(e) => e.stopPropagation()}
 						>
 							{project.name}

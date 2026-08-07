@@ -62,17 +62,17 @@
     Перенаправление...
   </div>
 {:else}
-  <div class="login-page">
-    <div class="login-container">
-      <div class="login-logo-wrapper">
-        <img src="/logo.svg" alt="CFGY" class="login-logo" />
+  <div class="auth-page">
+    <div class="auth-container">
+      <div class="auth-logo-wrapper">
+        <img src="/logo.svg" alt="CFGY" class="auth-logo" />
       </div>
 
-      <div class="login-form-wrapper">
-        <div class="login-title">Войдите в аккаунт:</div>
+      <div class="auth-form-wrapper">
+        <div class="auth-title">Войдите в аккаунт:</div>
 
-        <form onsubmit={handleSubmit} class="login-form">
-          <div class="login-inputs">
+        <form onsubmit={handleSubmit} class="auth-form">
+          <div class="auth-inputs">
             <Input
               type="email"
               placeholder="Email"
@@ -84,7 +84,7 @@
               className="w-full"
             />
 
-            <div class="login-password-wrapper">
+            <div class="auth-password-wrapper">
               <Input
                 type="password"
                 placeholder="Пароль"
@@ -96,7 +96,7 @@
                 state={error ? "error" : "default"}
                 className="w-full"
               />
-              <a href="/forgot-password/step1" class="login-forgot-link">
+              <a href="/forgot-password/step1" class="auth-forgot-link">
                 Забыл пароль?
               </a>
             </div>
@@ -123,11 +123,11 @@
         </form>
       </div>
 
-      <div class="login-signup-wrapper">
-        <div class="login-signup-text">Ещё нет аккаунта?</div>
-        <div class="login-signup-button-wrapper">
-          <div class="login-signup-button-text">Не проблема —</div>
-          <a href="/register" class="login-signup-button-link">
+      <div class="auth-signup-wrapper">
+        <div class="auth-signup-text">Ещё нет аккаунта?</div>
+        <div class="auth-signup-button-wrapper">
+          <div class="auth-signup-button-text">Не проблема —</div>
+          <a href="/register" class="auth-signup-button-link">
             <Button
               variant="basic-secondary"
               size="small-text"
