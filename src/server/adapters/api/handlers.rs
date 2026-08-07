@@ -1,15 +1,13 @@
 use axum::{
     Json,
-    body::Body,
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Redirect},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::error::Error;
-use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -48,61 +46,11 @@ pub struct AppState {
     pub user_repo: Arc<dyn UserRepository>,
     pub external_identity_repo: Arc<dyn ExternalIdentityRepository>,
     pub db_pool: PgPool,
-    /// Корень каталога со статикой (web/build) для раздачи favicon и т.д.
-    pub web_root: PathBuf,
 }
 
 const CFGY_SESSION_COOKIE_NAME: &str = "cfgy_session";
 const OIDC_STATE_COOKIE_NAME: &str = "cfgy_oidc_state";
 const OIDC_NEXT_COOKIE_NAME: &str = "cfgy_oidc_next";
-
-/// Раздача фавикона из web_root (для SPA при обращении через Rust-сервер)
-pub async fn serve_favicon(State(state): State<AppState>) -> Response {
-    let path = state.web_root.join("favicon.svg");
-    match tokio::fs::read(&path).await {
-        Ok(body) => Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "image/svg+xml")
-            .body(Body::from(body))
-            .unwrap(),
-        Err(_) => Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap(),
-    }
-}
-
-/// Раздача логотипа из web_root (для SPA при обращении через Rust-сервер)
-pub async fn serve_logo(State(state): State<AppState>) -> Response {
-    let path = state.web_root.join("logo.svg");
-    match tokio::fs::read(&path).await {
-        Ok(body) => Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "image/svg+xml")
-            .body(Body::from(body))
-            .unwrap(),
-        Err(_) => Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap(),
-    }
-}
-
-/// Раздача robots.txt из web_root (для краулеров)
-pub async fn serve_robots_txt(State(state): State<AppState>) -> Response {
-    let path = state.web_root.join("robots.txt");
-    match tokio::fs::read(&path).await {
-        Ok(body) => Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
-            .body(Body::from(body))
-            .unwrap(),
-        Err(_) => Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap(),
-    }
-}
 
 // ========== Типы для запросов и ответов ==========
 

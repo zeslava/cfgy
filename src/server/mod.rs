@@ -7,8 +7,8 @@ use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use crate::server::adapters::api::create_router;
 use crate::server::adapters::api::handlers::AppState;
-use crate::server::adapters::api::{create_router, get_index_path};
 use crate::server::adapters::crypto::AesCryptoService;
 use crate::server::adapters::persistence::PostgresUserRepository;
 use crate::server::application::{
@@ -166,10 +166,6 @@ pub async fn run_server() -> anyhow::Result<()> {
     eprintln!("[6/7] ✓ AuthService инициализирован");
 
     eprintln!("[6/7] Создание состояния приложения...");
-    let web_root = get_index_path()
-        .parent()
-        .expect("web_root: родитель index.html")
-        .to_path_buf();
     let app_state = AppState {
         project_service,
         parameter_service,
@@ -177,7 +173,6 @@ pub async fn run_server() -> anyhow::Result<()> {
         user_repo,
         external_identity_repo,
         db_pool: pool.clone(),
-        web_root,
     };
     eprintln!("[6/7] ✓ Состояние приложения создано");
 

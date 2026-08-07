@@ -10,7 +10,8 @@ tasks:
       - task --list
 
   build:
-    desc: Собрать cfgy (release)
+    desc: Собрать cfgy (release, со встроенным веб-дашбордом)
+    deps: [build-web]
     cmds:
       - cargo build --release
 
