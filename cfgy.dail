@@ -1,12 +1,10 @@
 FROM 15.0-RELEASE
 
 COPY target/release/cfgy /usr/local/bin/cfgy
-COPY web/build /usr/local/share/cfgy_server/web/build
 
-SERVICE cfgy_server
-CMD cfgy serve
+# Разделитель `--` нужен, чтобы `serve` ушёл бинарю, а не в флаги SERVICE
+SERVICE cfgy -- /usr/local/bin/cfgy serve
 
-ENV CFGY_WEB_ROOT=/usr/local/share/cfgy_server/web/build
 ENV RUST_LOG=info
 
 EXPOSE 8080
