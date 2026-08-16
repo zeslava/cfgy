@@ -55,6 +55,9 @@ pub enum Commands {
     },
     /// Список всех конфигов
     List {
+        /// Проект (если не указан — берётся из CFGY_PROJECT или cfgy.yaml)
+        #[arg(short, long)]
+        project: Option<String>,
         /// Configuration (если не указана — берётся из cfgy.yaml)
         #[arg(short, long)]
         configuration: Option<String>,

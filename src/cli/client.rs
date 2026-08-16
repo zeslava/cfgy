@@ -33,6 +33,16 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
+/// Ненайденные сущности выделены типом: вызывающая сторона (CI) отличает их
+/// от прочих ошибок по коду выхода.
+#[derive(Debug, thiserror::Error)]
+pub enum NotFound {
+    #[error("Проект '{0}' не найден")]
+    Project(String),
+    #[error("Configuration '{0}' не найдена")]
+    Configuration(String),
+}
+
 impl ApiClient {
     /// Создать новый клиент API
     pub fn new(base_url: String, token: Option<String>) -> Self {
@@ -157,7 +167,7 @@ impl ApiClient {
         projects
             .into_iter()
             .find(|p| p.name == name)
-            .ok_or_else(|| anyhow::anyhow!("Проект '{}' не найден", name))
+            .ok_or_else(|| NotFound::Project(name.to_string()).into())
     }
 
     /// Обновить проект
@@ -282,6 +292,8 @@ impl ApiClient {
                 .await
                 .context("Не удалось распарсить ответ получения секретов")?;
             Ok(secrets)
+        } else if status == reqwest::StatusCode::NOT_FOUND {
+            Err(NotFound::Configuration(env_name.to_string()).into())
         } else {
             let error: ErrorResponse = response.json().await.unwrap_or_else(|_| ErrorResponse {
                 error: format!("HTTP {}", status),

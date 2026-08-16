@@ -7,6 +7,12 @@ use crate::server::ports::{
     ConfigKeyRepository, ConfigurationRepository, CryptoService, ProjectRepository,
 };
 
+/// Конфигурация не найдена — отличается от «конфигурация пустая»,
+/// клиенты (CI) разделяют эти случаи по коду ответа.
+#[derive(Debug, thiserror::Error)]
+#[error("Конфигурация '{0}' не найдена")]
+pub struct ConfigurationNotFound(pub String);
+
 /// Сервис для работы с параметрами
 pub struct ParameterService<CKR, CR, PR, CS>
 where
@@ -131,7 +137,7 @@ where
             .config_repo
             .find_by_project_and_name(project_id, config_name)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Конфигурация '{}' не найдена", config_name))?;
+            .ok_or_else(|| ConfigurationNotFound(config_name.to_string()))?;
 
         // Получить все зашифрованные параметры
         let config_keys = self

@@ -13,7 +13,9 @@ use uuid::Uuid;
 
 use crate::server::adapters::api::auth::extract_user;
 use crate::server::application::{
-    auth::AuthService, parameters::ParameterService, projects::ProjectService,
+    auth::AuthService,
+    parameters::{ConfigurationNotFound, ParameterService},
+    projects::ProjectService,
 };
 use crate::server::config::{Config, OidcConfig};
 use crate::server::ports::{ExternalIdentityRepository, UserRepository};
@@ -1381,8 +1383,13 @@ pub async fn get_parameters(
         .list_parameters(project_id, &config_name, user.user_id)
         .await
         .map_err(|e| {
+            let status = if e.downcast_ref::<ConfigurationNotFound>().is_some() {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_REQUEST
+            };
             (
-                StatusCode::BAD_REQUEST,
+                status,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),

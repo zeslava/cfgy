@@ -24,8 +24,25 @@ fn ensure_server_config(app_config: AppConfig) -> Result<AppConfig> {
     Ok(AppConfig::load())
 }
 
+/// Configuration не найдена
+const EXIT_CONFIGURATION_NOT_FOUND: i32 = 3;
+/// Проект не найден
+const EXIT_PROJECT_NOT_FOUND: i32 = 4;
+
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(e) = dispatch().await {
+        eprintln!("{e:#}");
+        let code = match e.downcast_ref::<cli::client::NotFound>() {
+            Some(cli::client::NotFound::Configuration(_)) => EXIT_CONFIGURATION_NOT_FOUND,
+            Some(cli::client::NotFound::Project(_)) => EXIT_PROJECT_NOT_FOUND,
+            None => 1,
+        };
+        std::process::exit(code);
+    }
+}
+
+async fn dispatch() -> Result<()> {
     // Загрузить переменные окружения из .env файла, если он существует
     dotenv::dotenv().ok();
 
@@ -59,11 +76,12 @@ async fn main() -> Result<()> {
             get_config(key, configuration, format, &app_config).await
         }
         Commands::List {
+            project,
             configuration,
             format,
         } => {
             app_config = ensure_server_config(app_config)?;
-            list_configs(configuration, format, &app_config).await
+            list_configs(project, configuration, format, &app_config).await
         }
         Commands::Env {
             configuration,
@@ -260,28 +278,42 @@ async fn get_config(
 }
 
 async fn list_configs(
+    project: Option<String>,
     configuration: Option<String>,
     format: String,
     app_config: &AppConfig,
 ) -> Result<()> {
-    let config = ProjectConfig::load()?;
+    // Явный проект (флаг или CFGY_PROJECT) избавляет от cfgy.yaml —
+    // нужно для CI, где репозиторий про cfgy ничего не знает.
+    let project = project.or_else(|| std::env::var("CFGY_PROJECT").ok());
 
-    let configuration = configuration.unwrap_or_else(|| config.configuration.clone());
+    let (project_name, configuration) = match project {
+        Some(name) => {
+            let configuration = configuration.ok_or_else(|| {
+                anyhow::anyhow!("С --project нужно указать configuration через -c")
+            })?;
+            (name, configuration)
+        }
+        None => {
+            let config = ProjectConfig::load()?;
+            let configuration = configuration.unwrap_or_else(|| config.configuration.clone());
+            (config.project, configuration)
+        }
+    };
 
     let token = app_config.require_api_token()?;
     let server_url = app_config.require_server_url()?;
 
-    if config.project.is_empty() {
+    if project_name.is_empty() {
         anyhow::bail!("Имя проекта не указано в конфигурации. Запустите 'cfgy init'.");
     }
 
     let client = ApiClient::new(server_url.clone(), Some(token.clone()));
-    let project = client.find_project_by_name(&config.project).await?;
+    let project = client.find_project_by_name(&project_name).await?;
     let configs = client.get_secrets(project.id, &configuration).await?;
 
     if configs.is_empty() {
         eprintln!("⚠ Нет параметров для configuration '{}'", configuration);
-        return Ok(());
     }
 
     let output_format = OutputFormat::from_str(&format)?;
