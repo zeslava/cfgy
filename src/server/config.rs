@@ -115,16 +115,14 @@ impl Config {
                 _ => Self::parse_bool_env(zid),
             }
         };
+        // Автогенерация мастер-ключа недопустима: после перезапуска данные не расшифруются
         let master_key = match std::env::var("CFGY_MASTER_KEY") {
             Ok(k) if !k.is_empty() => k,
             _ => {
-                let key = Self::generate_random_hex(32);
-                eprintln!(
-                    "⚠️  CFGY_MASTER_KEY не задан — сгенерирован автоматически (данные не будут расшифрованы после перезапуска!)"
-                );
-                eprintln!("    Сохраните в .env или переменные окружения:");
-                eprintln!("    CFGY_MASTER_KEY={}", key);
-                key
+                return Err(format!(
+                    "CFGY_MASTER_KEY не задан. Сгенерируйте: cfgy generate-secrets или openssl rand -hex 32\n    Например: CFGY_MASTER_KEY={}",
+                    Self::generate_random_hex(32)
+                ));
             }
         };
 
@@ -194,19 +192,39 @@ impl Config {
         const MIN_MASTER_KEY_LEN: usize = 32;
         const MIN_JWT_SECRET_LEN: usize = 16;
 
+        // Значения-заглушки из .env.example и старого docker-compose.yml — публично известны
+        const PLACEHOLDERS: &[&str] = &[
+            "your-master-key-minimum-32-characters-long",
+            "your-jwt-secret-minimum-16-chars",
+            "default-master-key-change-in-production",
+            "default-jwt-secret-change-in-production",
+        ];
+
         if self.crypto.master_key.len() < MIN_MASTER_KEY_LEN {
-            eprintln!(
-                "⚠️  CFGY_MASTER_KEY слишком короткий ({} символов, минимум {})",
+            return Err(format!(
+                "CFGY_MASTER_KEY слишком короткий ({} символов, минимум {})",
                 self.crypto.master_key.len(),
                 MIN_MASTER_KEY_LEN
-            );
+            ));
         }
 
         if self.crypto.jwt_secret.len() < MIN_JWT_SECRET_LEN {
-            eprintln!(
-                "⚠️  CFGY_JWT_SECRET слишком короткий ({} символов, минимум {})",
+            return Err(format!(
+                "CFGY_JWT_SECRET слишком короткий ({} символов, минимум {})",
                 self.crypto.jwt_secret.len(),
                 MIN_JWT_SECRET_LEN
+            ));
+        }
+
+        if PLACEHOLDERS.contains(&self.crypto.master_key.as_str()) {
+            return Err(
+                "CFGY_MASTER_KEY содержит значение-заглушку из примера, задайте свой ключ".into(),
+            );
+        }
+
+        if PLACEHOLDERS.contains(&self.crypto.jwt_secret.as_str()) {
+            return Err(
+                "CFGY_JWT_SECRET содержит значение-заглушку из примера, задайте свой секрет".into(),
             );
         }
 

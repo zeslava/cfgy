@@ -28,8 +28,8 @@ services:
       DATABASE_MAX_CONNECTIONS: 20
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
-      CFGY_MASTER_KEY: ${CFGY_MASTER_KEY:-default-master-key-change-in-production}
-      CFGY_JWT_SECRET: ${CFGY_JWT_SECRET:-default-jwt-secret-change-in-production}
+      CFGY_MASTER_KEY: ${CFGY_MASTER_KEY:?CFGY_MASTER_KEY не задан, см. .env.example}
+      CFGY_JWT_SECRET: ${CFGY_JWT_SECRET:?CFGY_JWT_SECRET не задан, см. .env.example}
       RUST_LOG: info
     ports:
       - "8080:8080"
