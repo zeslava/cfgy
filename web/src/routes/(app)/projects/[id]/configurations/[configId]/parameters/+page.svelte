@@ -173,14 +173,23 @@
 								<Button type="button" variant="basic-secondary" size="small-text" onclick={cancelEdit}>Отмена</Button>
 							</form>
 						{:else}
-							<button
-								type="button"
-								class="text-regular-16 overflow-ellipsis text-left cursor-pointer"
-								style="flex:1;min-width:0;background:none;border:none;"
-								onclick={() => (revealed[param.key] = !revealed[param.key])}
-							>
+							<span class="text-regular-16 overflow-ellipsis" style="flex:1;min-width:0;">
 								{#if !param.value}(пусто){:else if revealed[param.key]}{param.value}{:else}••••••{/if}
-							</button>
+							</span>
+							{#if param.value}
+								<Button
+									variant="basic-secondary"
+									size="small-icon"
+									onclick={() => (revealed[param.key] = !revealed[param.key])}
+									aria-label={revealed[param.key] ? 'Скрыть значение' : 'Показать значение'}
+								>
+									{#if revealed[param.key]}
+										<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+									{:else}
+										<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" /></svg>
+									{/if}
+								</Button>
+							{/if}
 							<Button variant="basic-secondary" size="small-icon" onclick={() => startEdit(param.key, param.value)} aria-label="Редактировать">
 								<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
 							</Button>
