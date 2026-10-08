@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::server::adapters::api::auth::extract_user;
 use crate::server::application::{
-    auth::AuthService,
+    auth::{AuthService, RegistrationDisabled},
     parameters::{ConfigurationNotFound, ParameterService},
     projects::ProjectService,
 };
@@ -343,8 +343,13 @@ pub async fn register(
         .register(&request.email, &request.password)
         .await
         .map_err(|e| {
+            let status = if e.is::<RegistrationDisabled>() {
+                StatusCode::FORBIDDEN
+            } else {
+                StatusCode::BAD_REQUEST
+            };
             (
-                StatusCode::BAD_REQUEST,
+                status,
                 Json(ErrorResponse {
                     error: e.to_string(),
                 }),

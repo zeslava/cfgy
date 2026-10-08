@@ -24,6 +24,9 @@ pub struct DatabaseConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    /// Разрешена ли регистрация по email/паролю (CFGY_ALLOW_REGISTRATION).
+    /// None — только пока в системе нет ни одного пользователя (создание первого админа).
+    pub allow_registration: Option<bool>,
 }
 
 /// Конфигурация OIDC-провайдера (OAuth 2.0 / OIDC для Web UI).
@@ -155,6 +158,10 @@ impl Config {
                     .ok()
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(8080),
+                allow_registration: match std::env::var("CFGY_ALLOW_REGISTRATION") {
+                    Ok(v) if !v.is_empty() => Some(Self::parse_bool_env("CFGY_ALLOW_REGISTRATION")),
+                    _ => None,
+                },
             },
             crypto: CryptoConfig {
                 master_key,
@@ -253,6 +260,7 @@ impl Default for Config {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
+                allow_registration: Some(false),
             },
             crypto: CryptoConfig {
                 master_key: Self::generate_random_hex(32),

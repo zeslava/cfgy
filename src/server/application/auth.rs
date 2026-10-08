@@ -27,7 +27,20 @@ where
     user_repo: UR,
     token_repo: ATR,
     jwt_secret: String,
+    allow_registration: Option<bool>,
 }
+
+/// Регистрация запрещена настройками сервера
+#[derive(Debug)]
+pub struct RegistrationDisabled;
+
+impl std::fmt::Display for RegistrationDisabled {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Регистрация отключена администратором")
+    }
+}
+
+impl std::error::Error for RegistrationDisabled {}
 
 impl<UR, ATR> AuthService<UR, ATR>
 where
@@ -41,11 +54,20 @@ where
             user_repo,
             token_repo,
             jwt_secret: config.crypto.jwt_secret,
+            allow_registration: config.server.allow_registration,
         }
     }
 
     /// Зарегистрировать нового пользователя
     pub async fn register(&self, email: &str, password: &str) -> Result<User> {
+        let allowed = match self.allow_registration {
+            Some(allowed) => allowed,
+            None => self.user_repo.count().await? == 0,
+        };
+        if !allowed {
+            return Err(RegistrationDisabled.into());
+        }
+
         // Валидация email
         if email.is_empty() {
             anyhow::bail!("Email не может быть пустым");

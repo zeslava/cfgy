@@ -34,6 +34,9 @@ pub trait UserRepository: Send + Sync {
 
     /// Обновить email и username пользователя (например, после входа через ZID).
     async fn update_profile(&self, id: Uuid, email: &str, username: &str) -> Result<User>;
+
+    /// Количество пользователей в системе
+    async fn count(&self) -> Result<i64>;
 }
 
 /// Репозиторий для работы с проектами

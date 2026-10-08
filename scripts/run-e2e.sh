@@ -15,7 +15,8 @@ trap cleanup EXIT INT TERM
 fuser -k -TERM 8080/tcp 2>/dev/null || true
 sleep 1
 
-./target/release/cfgy serve &
+# Тесты регистрируют много пользователей
+CFGY_ALLOW_REGISTRATION=true ./target/release/cfgy serve &
 SERVER_PID=$!
 
 for i in $(seq 1 30); do

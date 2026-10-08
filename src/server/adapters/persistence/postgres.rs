@@ -107,6 +107,13 @@ impl UserRepository for PostgresUserRepository {
         Ok(user)
     }
 
+    async fn count(&self) -> Result<i64> {
+        sqlx::query_scalar("SELECT COUNT(*) FROM users")
+            .fetch_one(&self.pool)
+            .await
+            .context("Не удалось посчитать пользователей")
+    }
+
     async fn update_profile(&self, id: Uuid, email: &str, username: &str) -> Result<User> {
         let user = sqlx::query_as::<_, User>(
             r#"
