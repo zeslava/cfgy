@@ -331,6 +331,28 @@ pub struct TokenResponse {
 
 // ========== Handlers ==========
 
+#[derive(Debug, Serialize)]
+pub struct RegistrationStatusResponse {
+    pub open: bool,
+}
+
+/// GET /api/auth/registration
+///
+/// Открыта ли регистрация — фронт по этому решает, показывать ли форму.
+pub async fn registration_status(
+    State(state): State<AppState>,
+) -> Result<Json<RegistrationStatusResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let open = state.auth_service.registration_open().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    Ok(Json(RegistrationStatusResponse { open }))
+}
+
 /// POST /api/auth/register
 ///
 /// Возвращает session_token в JSON. Фронт сохраняет и шлёт Authorization: Bearer.

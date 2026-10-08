@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { user, authLoading, register } from '$lib/auth';
+	import { authApi } from '$lib/api';
 	import Button from '$lib/components/Button.svelte';
 	import Input from '$lib/components/Input.svelte';
 
@@ -10,6 +11,12 @@
 	let confirmPassword = $state('');
 	let error = $state('');
 	let isLoading = $state(false);
+	let registrationOpen = $state<boolean | null>(null);
+
+	authApi
+		.registrationStatus()
+		.then((s) => (registrationOpen = s.open))
+		.catch(() => (registrationOpen = true));
 
 	$effect(() => {
 		if (page.url.pathname !== '/register') return;
@@ -44,10 +51,22 @@
 	<title>Регистрация — CFGY</title>
 </svelte:head>
 
-{#if $authLoading}
+{#if $authLoading || registrationOpen === null}
 	<div class="flex items-center justify-center min-h-screen">Загрузка...</div>
 {:else if $user}
 	<div class="flex items-center justify-center min-h-screen">Перенаправление...</div>
+{:else if !registrationOpen}
+	<div class="auth-page">
+		<div class="auth-container">
+			<div class="auth-logo-wrapper">
+				<img src="/logo.svg" alt="CFGY" class="auth-logo" />
+			</div>
+			<p class="text-regular-16 text-center">Регистрация закрыта. Обратитесь к администратору.</p>
+			<p class="text-regular-16">
+				<a href="/login" class="text-basic-accent cursor-pointer">Войти</a>
+			</p>
+		</div>
+	</div>
 {:else}
 	<div class="auth-page">
 		<div class="auth-container">

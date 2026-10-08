@@ -58,13 +58,17 @@ where
         }
     }
 
+    /// Открыта ли регистрация по email/паролю
+    pub async fn registration_open(&self) -> Result<bool> {
+        match self.allow_registration {
+            Some(allowed) => Ok(allowed),
+            None => Ok(self.user_repo.count().await? == 0),
+        }
+    }
+
     /// Зарегистрировать нового пользователя
     pub async fn register(&self, email: &str, password: &str) -> Result<User> {
-        let allowed = match self.allow_registration {
-            Some(allowed) => allowed,
-            None => self.user_repo.count().await? == 0,
-        };
-        if !allowed {
+        if !self.registration_open().await? {
             return Err(RegistrationDisabled.into());
         }
 

@@ -74,6 +74,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(handlers::health_check))
         // API маршруты (должны быть перед статикой)
         .route("/api/auth/register", post(handlers::register))
+        .route("/api/auth/registration", get(handlers::registration_status))
         .route("/api/auth/login", post(handlers::login))
         .route("/api/auth/session", get(handlers::session))
         .route("/api/auth/me", get(handlers::me))

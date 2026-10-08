@@ -164,6 +164,9 @@ export const authApi = {
 			body: JSON.stringify(data)
 		}),
 
+	registrationStatus: (): Promise<{ open: boolean }> =>
+		request('/auth/registration', { skipAuth: true }),
+
 	login: (data: LoginRequest): Promise<LoginResponse> =>
 		request('/auth/login', {
 			method: 'POST',

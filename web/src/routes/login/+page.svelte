@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { user, authLoading, login } from "$lib/auth";
   import { setDocumentTitle } from "$lib/documentTitle";
+  import { authApi } from "$lib/api";
   import Button from "$lib/components/Button.svelte";
   import Input from "$lib/components/Input.svelte";
 
@@ -12,6 +13,12 @@
   let password = $state("");
   let error = $state("");
   let isLoading = $state(false);
+  let registrationOpen = $state(false);
+
+  authApi
+    .registrationStatus()
+    .then((s) => (registrationOpen = s.open))
+    .catch(() => {});
 
   // Ошибка из query (редирект после неудачного входа через OIDC)
   $effect(() => {
@@ -120,6 +127,7 @@
         </form>
       </div>
 
+      {#if registrationOpen}
       <div class="auth-signup-wrapper">
         <div class="auth-signup-text">Ещё нет аккаунта?</div>
         <div class="auth-signup-button-wrapper">
@@ -135,6 +143,7 @@
           </a>
         </div>
       </div>
+      {/if}
     </div>
   </div>
 {/if}
