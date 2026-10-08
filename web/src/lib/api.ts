@@ -126,8 +126,7 @@ async function request<T>(
 			if (
 				typeof window !== 'undefined' &&
 				window.location.pathname !== '/login' &&
-				window.location.pathname !== '/register' &&
-				!window.location.pathname.startsWith('/forgot-password')
+				window.location.pathname !== '/register'
 			) {
 				window.location.href = '/login';
 			}
@@ -180,27 +179,6 @@ export const authApi = {
 	logout: (): Promise<void> =>
 		request('/auth/logout', {
 			method: 'POST'
-		}),
-
-	requestPasswordReset: (email: string): Promise<void> =>
-		request('/auth/forgot-password', {
-			method: 'POST',
-			body: JSON.stringify({ email }),
-			skipAuth: true
-		}),
-
-	verifyCode: (email: string, code: string): Promise<void> =>
-		request('/auth/verify-code', {
-			method: 'POST',
-			body: JSON.stringify({ email, code }),
-			skipAuth: true
-		}),
-
-	resetPassword: (email: string, code: string, newPassword: string): Promise<void> =>
-		request('/auth/reset-password', {
-			method: 'POST',
-			body: JSON.stringify({ email, code, new_password: newPassword }),
-			skipAuth: true
 		})
 };
 

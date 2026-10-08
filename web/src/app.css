@@ -647,7 +647,7 @@ code {
   color: var(--color-states-success);
 }
 
-/* ========== Auth pages (login, register, forgot-password) ========== */
+/* ========== Auth pages (login, register) ========== */
 .auth-page {
   background: var(--colors-surface);
   min-height: 100vh;
@@ -716,16 +716,6 @@ code {
   gap: 4px;
   align-items: flex-start;
   width: 100%;
-}
-.auth-forgot-link {
-  font-family: "Inter", sans-serif;
-  font-weight: 300;
-  font-size: 14px;
-  color: var(--colors-text-primary);
-  text-decoration: none;
-}
-.auth-forgot-link:hover {
-  text-decoration: underline;
 }
 .auth-signup-wrapper {
   display: flex;

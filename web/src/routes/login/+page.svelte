@@ -96,9 +96,6 @@
                 state={error ? "error" : "default"}
                 className="w-full"
               />
-              <a href="/forgot-password/step1" class="auth-forgot-link">
-                Забыл пароль?
-              </a>
             </div>
           </div>
 
