@@ -4,17 +4,53 @@
 
 > Всё описание проекта и инструкции по запуску — в этом корневом `README.md`.
 
-## Структура репозитория
+## Использование
 
-Монорепозиторий (Cargo workspace):
+CLI работает в контексте проекта (файл `cfgy.yaml`: имя проекта и текущая configuration). **Configuration** — это окружение (dev, prod и т.д.); **параметры** — пары ключ–значение внутри выбранной configuration.
 
-- `server/` — backend (Axum, Rust, edition 2024)
-- `cli/` — CLI-клиент (Rust)
-- `web/` — SPA (Svelte 5 + SvelteKit, TypeScript)
-- `tests/` — интеграционные smoke-тесты API
-- `freebsd/` — установка сервера как системного сервиса на FreeBSD ([freebsd/README.md](./freebsd/README.md))
+Типичный порядок: запустить сервер (`task run`) → открыть `http://localhost:8080` → зарегистрироваться/войти → создать API-токен → экспортировать `CFGY_SERVER_URL` и `CFGY_TOKEN` → в проекте выполнить `cfgy init` и `cfgy use dev` → использовать `cfgy get/set/list/run`.
 
-## Требования
+Типичные команды:
+```bash
+cfgy use dev                    # выбрать configuration по умолчанию (записывается в cfgy.yaml)
+cfgy set DATABASE_URL postgres://...
+cfgy get DATABASE_URL
+cfgy list                       # список параметров текущей configuration
+cfgy run -- <command> [args...] # запуск команды с env из текущей configuration
+
+cfgy generate-secrets           # сгенерировать CFGY_MASTER_KEY и CFGY_JWT_SECRET
+cfgy generate-secrets --format shell
+```
+
+### Подключение CLI к серверу
+Контекст проекта — `cfgy.yaml` (имя проекта и текущая configuration). Подключение к серверу задаётся переменными окружения или центральным конфигом `~/.cfgy/config.yaml` (переменные окружения имеют приоритет над файлом).
+
+**Переменные окружения:**
+- `CFGY_SERVER_URL` — URL сервера (например `http://localhost:8080` или `https://cfgy.example.com`). Если схема не указана, используется `http://`.
+- `CFGY_TOKEN` — API-токен (создаётся в веб-дашборде)
+
+**Центральный конфиг** `~/.cfgy/config.yaml` (YAML):
+
+```yaml
+server_url: "http://localhost:8080"
+token: "your-token"
+```
+
+Рекомендуется права доступа на файл `0600`. Токен и URL можно задать либо в env, либо в этом файле; env переопределяет файл (удобно для CI).
+
+```bash
+export CFGY_SERVER_URL=http://localhost:8080
+export CFGY_TOKEN="<token-from-dashboard>"
+```
+
+### Токены и аутентификация
+
+- **JWT (session token)** — веб-сессия (логин в дашборде)
+- **API-токен** — доступ из CLI/CI (создаётся только в веб-дашборде)
+
+## Установка
+
+### Требования
 
 - **Docker + Docker Compose** — для PostgreSQL (`task up`) или полного стека в контейнерах
 - **Rust** (edition 2024) — для сервера и CLI
@@ -22,7 +58,7 @@
 - **Task** — [taskfile.dev](https://taskfile.dev), установка: `go install github.com/go-task/task/v3/cmd/task@latest` или пакетный менеджер
 - **sqlx-cli** (для миграций без Task): `cargo install sqlx-cli --no-default-features --features postgres`
 
-## Быстрый старт (Docker + Taskfile)
+### Быстрый старт (Docker + Taskfile)
 
 ```bash
 task                    # список команд
@@ -46,24 +82,7 @@ docker compose logs -f postgres   # при использовании task up + 
 # если сервер запущен в Docker (docker compose up): docker compose logs -f server
 ```
 
-### Ежедневный UX (CLI)
-CLI работает в контексте проекта (файл `cfgy.yaml`: имя проекта и текущая configuration). **Configuration** — это окружение (dev, prod и т.д.); **параметры** — пары ключ–значение внутри выбранной configuration.
-
-Типичные команды:
-```bash
-cfgy use dev                    # выбрать configuration по умолчанию (записывается в cfgy.yaml)
-cfgy set DATABASE_URL postgres://...
-cfgy get DATABASE_URL
-cfgy list                       # список параметров текущей configuration
-cfgy run -- <command> [args...] # запуск команды с env из текущей configuration
-
-cfgy generate-secrets           # сгенерировать CFGY_MASTER_KEY и CFGY_JWT_SECRET
-cfgy generate-secrets --format shell
-```
-
-## Переменные окружения
-
-### Настройка переменных окружения
+### Переменные окружения
 
 Скопируйте `.env.example` в `.env` и настройте под свои нужды:
 ```bash
@@ -72,8 +91,7 @@ cp .env.example .env
 
 Файл `.env` уже добавлен в `.gitignore` и не будет закоммичен в репозиторий.
 
-### Сервер
-Основные переменные (полный список и комментарии — в `.env.example`):
+Основные переменные сервера (полный список и комментарии — в `.env.example`):
 - **БД:** `DATABASE_URL`, опционально `DATABASE_MAX_CONNECTIONS`
 - **Безопасность:** `CFGY_MASTER_KEY` (шифрование параметров), `CFGY_JWT_SECRET` (JWT-сессии)
 - **Сервер:** `SERVER_HOST`, `SERVER_PORT` (по умолчанию 127.0.0.1:8080)
@@ -84,34 +102,27 @@ cp .env.example .env
 
 **Для домашнего использования** можно оставить значения по умолчанию — сервер будет работать с предупреждениями.
 
-### CLI (подключение к серверу)
-Контекст проекта — `cfgy.yaml` (имя проекта и текущая configuration). Подключение к серверу задаётся переменными окружения или центральным конфигом `~/.cfgy/config.yaml` (переменные окружения имеют приоритет над файлом).
-
-**Переменные окружения:**
-- `CFGY_SERVER_URL` — URL сервера (например `http://localhost:8080` или `https://cfgy.example.com`). Если схема не указана, используется `http://`.
-- `CFGY_TOKEN` — API-токен (создаётся в веб-дашборде)
-
-**Центральный конфиг** `~/.cfgy/config.yaml` (YAML):
-
-```yaml
-server_url: "http://localhost:8080"
-token: "your-token"
-```
-
-Рекомендуется права доступа на файл `0600`. Токен и URL можно задать либо в env, либо в этом файле; env переопределяет файл (удобно для CI).
-
-```bash
-export CFGY_SERVER_URL=http://localhost:8080
-export CFGY_TOKEN="<token-from-dashboard>"
-```
-
-## Ручной запуск
+### Ручной запуск
 
 1. **PostgreSQL** — `task up` или `docker compose up -d postgres`. Порт с хоста: `5433`.
 2. **Миграции** — `task migrate` (использует `DATABASE_URL` из `.env`; по умолчанию `postgres://postgres:postgres@localhost:5433/cfgy`). Другой URL: `DATABASE_URL="postgres://..." task migrate`.
 3. **Сервер** — `task run` (собирает release, применяет миграции, запускает `cfgy-server`).
 4. **Проект для CLI** — в корне проекта: `cfgy init`, затем `cfgy use dev` (или другую configuration). Далее `cfgy get/set/list/run` используют выбранную configuration.
 5. **Сборка веб-приложения** — `cd web && npm install && npm run build` (артефакты в `web/build`).
+
+### FreeBSD
+
+Установка сервера как системного сервиса — [freebsd/README.md](./freebsd/README.md).
+
+## Структура репозитория
+
+Монорепозиторий (Cargo workspace):
+
+- `server/` — backend (Axum, Rust, edition 2024)
+- `cli/` — CLI-клиент (Rust)
+- `web/` — SPA (Svelte 5 + SvelteKit, TypeScript)
+- `tests/` — интеграционные smoke-тесты API
+- `freebsd/` — установка сервера как системного сервиса на FreeBSD ([freebsd/README.md](./freebsd/README.md))
 
 ## Команды Taskfile
 
@@ -143,13 +154,6 @@ export CFGY_TOKEN="<token-from-dashboard>"
 
 ### Dev-режим веб-приложения
 `task web` запускает SvelteKit dev-сервер на `http://localhost:5173`. API должен быть уже запущен (`task run` в другом терминале). Команда интерактивная — запускайте вручную.
-
-## Токены и аутентификация
-
-- **JWT (session token)** — веб-сессия (логин в дашборде)
-- **API-токен** — доступ из CLI/CI (создаётся только в веб-дашборде)
-
-Типичный порядок: запустить сервер (`task run`) → открыть `http://localhost:8080` → зарегистрироваться/войти → создать API-токен → экспортировать `CFGY_SERVER_URL` и `CFGY_TOKEN` → в проекте выполнить `cfgy init` и `cfgy use dev` → использовать `cfgy get/set/list/run`.
 
 ## Smoke-тесты API
 
