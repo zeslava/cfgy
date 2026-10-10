@@ -95,18 +95,19 @@ cp .env.example .env
 - **БД:** `DATABASE_URL`, опционально `DATABASE_MAX_CONNECTIONS`
 - **Безопасность:** `CFGY_MASTER_KEY` (шифрование параметров), `CFGY_JWT_SECRET` (JWT-сессии)
 - **Сервер:** `SERVER_HOST`, `SERVER_PORT` (по умолчанию 127.0.0.1:8080)
-- **ZID OAuth 2.0:** `ZID_ISSUER`, `ZID_CLIENT_ID`, `ZID_CLIENT_SECRET`, `ZID_REDIRECT_URI`; опционально `ZID_BASE_URL`, `ZID_TLS_INSECURE`, `ZID_CA_FILE`
-- **Прочее:** `RUST_LOG`, `ALLOWED_ORIGINS` (CORS), `CFGY_WEB_ROOT`, `ENABLE_HTTPS`, `LOG_FORMAT`
+- **Регистрация:** `CFGY_ALLOW_REGISTRATION` — по умолчанию по email/паролю можно зарегистрировать только первого пользователя
+- **OIDC (ZID, Keycloak, Auth0, Authentik и др.):** `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`; опционально `OIDC_BASE_URL`, `OIDC_PROVIDER_NAME`, `OIDC_TLS_INSECURE`, `OIDC_CA_FILE`, `CFGY_FRONTEND_URL`. Старые `ZID_*` поддерживаются как fallback
+- **Прочее:** `RUST_LOG`, `ALLOWED_ORIGINS` (CORS), `CFGY_WEB_ROOT`, `ENABLE_HTTPS`
 
 Переопределение при запуске: `CFGY_MASTER_KEY=... CFGY_JWT_SECRET=... task run`
 
-**Для домашнего использования** можно оставить значения по умолчанию — сервер будет работать с предупреждениями.
+`CFGY_MASTER_KEY` обязателен: без него (или со значением-заглушкой из `.env.example`) сервер не запустится. Сгенерировать: `cfgy generate-secrets`. Если не задан `CFGY_JWT_SECRET`, он генерируется при старте и сессии сбрасываются после перезапуска.
 
 ### Ручной запуск
 
 1. **PostgreSQL** — `task up` или `docker compose up -d postgres`. Порт с хоста: `5433`.
 2. **Миграции** — `task migrate` (использует `DATABASE_URL` из `.env`; по умолчанию `postgres://postgres:postgres@localhost:5433/cfgy`). Другой URL: `DATABASE_URL="postgres://..." task migrate`.
-3. **Сервер** — `task run` (собирает release, применяет миграции, запускает `cfgy-server`).
+3. **Сервер** — `task run` (собирает release, применяет миграции, запускает `cfgy serve`).
 4. **Проект для CLI** — в корне проекта: `cfgy init`, затем `cfgy use dev` (или другую configuration). Далее `cfgy get/set/list/run` используют выбранную configuration.
 5. **Сборка веб-приложения** — `cd web && npm install && npm run build` (артефакты в `web/build`).
 
@@ -116,12 +117,13 @@ cp .env.example .env
 
 ## Структура репозитория
 
-Монорепозиторий (Cargo workspace):
+Один бинарь `cfgy` (Rust, edition 2024): CLI и сервер (`cfgy serve`), веб-дашборд встроен в бинарь.
 
-- `server/` — backend (Axum, Rust, edition 2024)
-- `cli/` — CLI-клиент (Rust)
+- `src/server/` — backend (Axum)
+- `src/cli/` — CLI-клиент
 - `web/` — SPA (Svelte 5 + SvelteKit, TypeScript)
-- `tests/` — интеграционные smoke-тесты API
+- `migrations/` — SQL-миграции (применяются автоматически при старте сервера)
+- `tests/` — e2e-тесты API
 - `freebsd/` — установка сервера как системного сервиса на FreeBSD ([freebsd/README.md](./freebsd/README.md))
 
 ## Команды Taskfile
@@ -134,34 +136,34 @@ cp .env.example .env
 - `task up` — поднять PostgreSQL в Docker (порт 5433)
 - `task down` — остановить контейнеры
 - `task migrate` — применить миграции
-- `task build` — собрать cfgy-server (release)
-- `task build-cli` — собрать CLI (release)
+- `task build` — собрать cfgy (release, со встроенным веб-дашбордом)
 - `task build-web` — собрать веб в `web/build`
 - `task generate-secrets` — вывести `CFGY_MASTER_KEY` и `CFGY_JWT_SECRET` (через `cfgy generate-secrets`)
-- `task install-cli` — установить CLI в `/usr/local/bin/cfgy` (требуется sudo)
-- `task install-freebsd` — установить cfgy-server как системный сервис на FreeBSD (от root на целевом хосте)
+- `task install` / `task uninstall` — установить/удалить `cfgy` в `/usr/local/bin` (требуется sudo)
+- `task e2e` — e2e-тесты (поднимает сервер, прогоняет тесты, останавливает)
+- `task install-freebsd` — установить cfgy как системный сервис на FreeBSD (от root на целевом хосте)
 
-Остальное: `cargo build/check/test/clippy/fmt`, `docker compose ps/logs`, `cargo test --bin smoke_tests`.
+Остальное: `cargo build/check/test/clippy/fmt`, `docker compose ps/logs`.
 
 ## Web Dashboard
 
 Дашборд доступен по адресу сервера: `http://localhost:8080` (при `task run`).
 
 Возможности:
-- Регистрация, логин (JWT), вход через ZID (OAuth 2.0 Authorization Code), восстановление пароля
+- Регистрация, логин (JWT), вход через OIDC-провайдера (OAuth 2.0 Authorization Code)
 - Проекты, configurations (окружения), параметры (ключи–значения) — CRUD (чувствительные параметры хранятся в зашифрованном виде)
 - API-токены: создание, просмотр, удаление
 
 ### Dev-режим веб-приложения
 `task web` запускает SvelteKit dev-сервер на `http://localhost:5173`. API должен быть уже запущен (`task run` в другом терминале). Команда интерактивная — запускайте вручную.
 
-## Smoke-тесты API
+## E2E-тесты API
 
-Интеграционные тесты в `tests/` проверяют основные сценарии API (регистрация/логин, проекты/configurations/параметры).
+Тесты в `tests/e2e.rs` проверяют основные сценарии API (регистрация/логин, проекты/configurations/параметры).
 
-Запуск: сервер должен быть доступен на `http://localhost:8080` (`task run`), затем:
+Запуск (нужен PostgreSQL: `task up`; задача сама собирает бинарь, применяет миграции, поднимает и останавливает сервер на `:8080`):
 ```bash
-cargo test --bin smoke_tests
+task e2e
 ```
 
 ## Архитектура и документация
