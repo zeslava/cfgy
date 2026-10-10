@@ -51,7 +51,6 @@ pub struct User {
 pub struct AccessToken {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub project_id: Option<Uuid>,
     pub name: String,
     pub token_hash: String,
     pub expires_at: Option<DateTime<Utc>>,

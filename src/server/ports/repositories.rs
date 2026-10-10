@@ -123,7 +123,6 @@ pub trait AccessTokenRepository: Send + Sync {
     async fn create(
         &self,
         user_id: Uuid,
-        project_id: Option<Uuid>,
         name: &str,
         token_hash: &str,
         expires_at: Option<chrono::DateTime<chrono::Utc>>,

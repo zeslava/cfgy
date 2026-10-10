@@ -307,7 +307,6 @@ pub struct DeleteParameterPath {
 #[derive(Deserialize)]
 pub struct CreateTokenRequest {
     pub name: String,
-    pub project_id: Option<uuid::Uuid>,
     pub expires_in_days: Option<u32>,
 }
 
@@ -323,7 +322,6 @@ pub struct CreateTokenResponse {
 pub struct TokenResponse {
     pub id: uuid::Uuid,
     pub name: String,
-    pub project_id: Option<uuid::Uuid>,
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -1495,7 +1493,6 @@ pub async fn list_tokens(
         .map(|t| TokenResponse {
             id: t.id,
             name: t.name,
-            project_id: t.project_id,
             expires_at: t.expires_at,
             created_at: t.created_at,
             last_used_at: t.last_used_at,
@@ -1517,7 +1514,6 @@ pub async fn create_token(
         .auth_service
         .create_access_token(
             user.user_id,
-            request.project_id,
             &request.name,
             request.expires_in_days,
         )

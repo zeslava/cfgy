@@ -78,7 +78,6 @@ export type Parameters = Parameter[];
 export interface Token {
 	id: string;
 	name: string;
-	project_id?: string;
 	expires_at?: string;
 	created_at: string;
 	last_used_at?: string;
@@ -86,7 +85,6 @@ export interface Token {
 
 export interface CreateTokenRequest {
 	name: string;
-	project_id?: string;
 	expires_in_days?: number;
 }
 

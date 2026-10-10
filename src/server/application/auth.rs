@@ -161,7 +161,6 @@ where
     pub async fn create_access_token(
         &self,
         user_id: Uuid,
-        project_id: Option<Uuid>,
         name: &str,
         expires_in_days: Option<u32>,
     ) -> Result<(AccessToken, String)> {
@@ -178,7 +177,7 @@ where
         // Сохранить токен в БД
         let access_token = self
             .token_repo
-            .create(user_id, project_id, name, &token_hash, expires_at)
+            .create(user_id, name, &token_hash, expires_at)
             .await
             .context("Не удалось создать API токен")?;
 

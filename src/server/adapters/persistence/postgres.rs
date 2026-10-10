@@ -467,20 +467,18 @@ impl AccessTokenRepository for PostgresUserRepository {
     async fn create(
         &self,
         user_id: Uuid,
-        project_id: Option<Uuid>,
         name: &str,
         token_hash: &str,
         expires_at: Option<DateTime<Utc>>,
     ) -> Result<AccessToken> {
         let token = sqlx::query_as::<_, AccessToken>(
             r#"
-            INSERT INTO access_tokens (user_id, project_id, name, token_hash, expires_at)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, user_id, project_id, name, token_hash, expires_at, created_at, last_used_at
+            INSERT INTO access_tokens (user_id, name, token_hash, expires_at)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, user_id, name, token_hash, expires_at, created_at, last_used_at
             "#,
         )
         .bind(user_id)
-        .bind(project_id)
         .bind(name)
         .bind(token_hash)
         .bind(expires_at)
@@ -496,7 +494,7 @@ impl AccessTokenRepository for PostgresUserRepository {
     async fn find_by_hash(&self, token_hash: &str) -> Result<Option<AccessToken>> {
         let token = sqlx::query_as::<_, AccessToken>(
             r#"
-            SELECT id, user_id, project_id, name, token_hash, expires_at, created_at, last_used_at
+            SELECT id, user_id, name, token_hash, expires_at, created_at, last_used_at
             FROM access_tokens
             WHERE token_hash = $1
             "#,
@@ -512,7 +510,7 @@ impl AccessTokenRepository for PostgresUserRepository {
     async fn find_by_user(&self, user_id: Uuid) -> Result<Vec<AccessToken>> {
         let tokens = sqlx::query_as::<_, AccessToken>(
             r#"
-            SELECT id, user_id, project_id, name, token_hash, expires_at, created_at, last_used_at
+            SELECT id, user_id, name, token_hash, expires_at, created_at, last_used_at
             FROM access_tokens
             WHERE user_id = $1
             ORDER BY created_at DESC
