@@ -146,12 +146,9 @@ where
             .await
             .context("Не удалось получить параметры")?;
 
-        // Сохранить количество параметров для проверки
-        let total_parameters = config_keys.len();
-
-        // Расшифровать все параметры
+        // Частичный результат не отдаём: клиент (CI) молча получил бы неполное окружение
         let mut parameters = HashMap::new();
-        let mut errors = Vec::new();
+        let mut failed_keys = Vec::new();
 
         for config_key in config_keys {
             match self
@@ -160,54 +157,24 @@ where
                 .await
             {
                 Ok(value) => {
-                    parameters.insert(config_key.key.clone(), value);
+                    parameters.insert(config_key.key, value);
                 }
                 Err(e) => {
-                    // Диагностика: вывести hex dump первых байт для анализа
-                    let hex_preview = config_key
-                        .encrypted_value
-                        .iter()
-                        .take(32)
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" ");
-                    let hex_dump = if config_key.encrypted_value.len() > 32 {
-                        format!("{}...", hex_preview)
-                    } else {
-                        hex_preview
-                    };
-
-                    let error_msg = format!(
-                        "Не удалось расшифровать параметр '{}': {} (размер данных: {} байт, hex: {})",
+                    tracing::error!(
+                        "Не удалось расшифровать параметр '{}' (конфигурация {}): {}",
                         config_key.key,
-                        e,
-                        config_key.encrypted_value.len(),
-                        hex_dump
+                        config.id,
+                        e
                     );
-                    tracing::error!("{}", error_msg);
-                    errors.push(error_msg);
-                    // Пропускаем этот параметр, но продолжаем обработку остальных
+                    failed_keys.push(config_key.key);
                 }
             }
         }
 
-        // Если не удалось расшифровать ни одного параметра, но они есть
-        if parameters.is_empty() && total_parameters > 0 {
+        if !failed_keys.is_empty() {
             anyhow::bail!(
-                "Не удалось расшифровать ни одного параметра. Возможно, изменился CFGY_MASTER_KEY или данные повреждены.\n\
-                Убедитесь, что используется тот же CFGY_MASTER_KEY, который применялся при шифровании параметров.\n\
-                Если ключ изменился, параметры необходимо перешифровать. Ошибки: {}",
-                errors.join("; ")
-            );
-        }
-
-        // Если были ошибки для некоторых параметров, но хотя бы один расшифрован
-        if !errors.is_empty() {
-            tracing::warn!(
-                "Частичная расшифровка параметров: успешно расшифровано {}/{}, ошибки: {}",
-                parameters.len(),
-                parameters.len() + errors.len(),
-                errors.join("; ")
+                "Не удалось расшифровать параметры: {}. Возможно, изменился CFGY_MASTER_KEY или данные повреждены",
+                failed_keys.join(", ")
             );
         }
 
