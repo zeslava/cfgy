@@ -19,7 +19,7 @@ src/server/
   config.rs            # конфиг сервера из env
   application/         # бизнес-логика: auth.rs, projects.rs, parameters.rs
   ports/               # repositories.rs (трейты), crypto.rs (CryptoService), entities.rs
-  adapters/api/        # handlers.rs, router.rs, auth.rs (JWT/Bearer/ZID OAuth)
+  adapters/api/        # handlers.rs, router.rs, auth.rs (JWT/Bearer/OIDC SSO)
   adapters/persistence/postgres.rs
   adapters/crypto/aes.rs
 migrations/            # NNN_name.up.sql + .down.sql (sqlx)
@@ -43,7 +43,8 @@ dail/, *.dail          # конфиги dail-jail деплоя (postgresql.conf,
 ## Env
 
 `DATABASE_URL` (по умолчанию `postgres://postgres:postgres@localhost:5433/cfgy`),
-`CFGY_MASTER_KEY` (hex, 32 байта, AES-GCM), `CFGY_JWT_SECRET`, `RUST_LOG`, `ZID_*` (OAuth SSO).
+`CFGY_MASTER_KEY` (hex, 32 байта, AES-GCM), `CFGY_JWT_SECRET`, `RUST_LOG`, `OIDC_*` (OIDC SSO, `ZID_*` — fallback).
+`CFGY_MASTER_KEY` обязателен — без него сервер не стартует.
 Taskfile подхватывает `.env` (`dotenv:`). Секреты генерируются `task generate-secrets`.
 
 ## Дальше

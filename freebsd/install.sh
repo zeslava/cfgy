@@ -2,7 +2,7 @@
 #
 # Скрипт установки cfgy-server как сервиса на FreeBSD
 # Использование: sudo ./install.sh [путь_к_бинарнику] [путь_к_web/build]
-# По умолчанию: ./cfgy-server; статика — из репо web/build, если есть
+# По умолчанию: ./cfgy; статика — из репо web/build, если есть
 #
 
 set -e
@@ -188,6 +188,6 @@ echo "   ${YELLOW}service cfgy_server config${NC}"
 echo ""
 if [ -z "${WEB_DIST_SOURCE}" ]; then
     echo "7. Статика Web UI не установлена. Чтобы добавить:"
-    echo "   ${YELLOW}sudo ./install.sh /usr/local/bin/cfgy-server /path/to/web/build${NC}"
+    echo "   ${YELLOW}sudo ./install.sh target/release/cfgy /path/to/web/build${NC}"
     echo ""
 fi

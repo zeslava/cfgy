@@ -5,15 +5,17 @@
 **CFGY** — система управления конфигурацией и параметрами с полноценным стеком: **CLI + Server API + Web Dashboard**.
 
 ### Компоненты
-- `server/` — Backend сервер (Axum framework, Rust)
-- `cli/` — CLI клиент (Rust)
-- `web/` — SPA фронтенд (Svelte 5 + SvelteKit)
-- `tests/` — Интеграционные smoke-тесты API
+Один Rust-бинарь `cfgy` (`src/main.rs`) — CLI и сервер (`cfgy serve`):
+- `src/server/` — Backend сервер (Axum)
+- `src/cli/` — CLI клиент
+- `web/` — SPA фронтенд (Svelte 5 + SvelteKit), сборка `web/build/` встраивается в бинарь (rust-embed)
+- `tests/e2e.rs` — E2E-тесты против живого сервера
+- `migrations/` — SQL-миграции
 
 ### Технологический стек
 - **Backend:** Rust (edition 2024), Axum, PostgreSQL, sqlx
 - **Frontend:** Svelte 5, SvelteKit, TypeScript, Vite (под капотом SvelteKit)
-- **База данных:** PostgreSQL
+- **База данных:** PostgreSQL 18
 - **Шифрование:** AES-GCM для секретов, Argon2 для паролей
 
 ### Статус проекта
@@ -28,14 +30,14 @@
 #### Строгое разделение слоев
 
 ```
-server/src/
+src/server/
 ├── application/    # Бизнес-логика (чистая, без зависимостей от инфраструктуры)
 ├── ports/          # Интерфейсы и доменные типы
 │   ├── repositories.rs  # Трейты репозиториев
 │   ├── crypto.rs       # Трейт CryptoService
 │   └── entities.rs     # Доменные типы (User, Project, Configuration, ConfigKey)
 └── adapters/       # Реализации
-    ├── api/        # HTTP handlers (Axum)
+    ├── api/        # HTTP handlers, router, auth (JWT/Bearer/OIDC), static_assets
     ├── persistence/ # PostgreSQL (sqlx)
     └── crypto/     # AES-GCM
 ```
@@ -47,8 +49,8 @@ server/src/
    - Никаких прямых зависимостей от БД, HTTP, криптографии
 
 2. **Dependency Injection через трейты**
-   - Все зависимости передаются через трейты из `ports/`
-   - Конкретные реализации инжектируются в `main.rs`
+   - Все зависимости передаются через трейты из `ports/` (generic-параметры сервисов)
+   - Конкретные реализации инжектируются при запуске сервера (`src/server/mod.rs`)
 
 3. **Тестирование**
    - Моки реализуют трейты из `ports/`
@@ -138,8 +140,9 @@ pub struct Project {
 
 #### Формат файлов миграций
 
-- **Формат:** `000_name.up.sql` и `000_name.down.sql`
-- **Нумерация:** `000_`, `001_`, `002_`, `003_` и т.д.
+- **Каталог:** `migrations/`
+- **Формат:** `NNN_name.up.sql` и `NNN_name.down.sql`
+- **Нумерация:** `001_`, `002_`, … (следующий свободный номер после последней миграции)
 - **Имена:** описательные, snake_case (например: `001_initial_schema.up.sql`, `002_rename_environments_to_configurations.up.sql`)
 - **Up миграция:** содержит изменения для применения миграции
 - **Down миграция:** содержит обратные изменения для отката миграции
@@ -155,7 +158,7 @@ pub struct Project {
 
 - Через `task migrate` (использует `sqlx migrate run`)
 - Переменная `DATABASE_URL` должна быть установлена
-- Миграции применяются автоматически при запуске сервера в production
+- Миграции применяются автоматически при запуске сервера
 - Откат через `sqlx migrate revert` (применяет down миграции)
 
 #### Пример структуры миграции
@@ -201,7 +204,7 @@ async fn find_by_id(&self, id: Uuid) -> Result<Option<User>> {
 
 - Параметры хранятся как `BYTEA` (encrypted_value)
 - Шифрование через `CryptoService` trait
-- Master key из переменной окружения `CFGY_MASTER_KEY`
+- Master key из переменной окружения `CFGY_MASTER_KEY` (обязателен: без него сервер не стартует)
 - Пароли хэшируются через Argon2 (не шифруются)
 
 ## Правила работы с API (Axum)
@@ -245,14 +248,16 @@ pub async fn create_project(
 - Роуты определяются в `adapters/api/router.rs`
 - API endpoints под префиксом `/api/`
 - Auth endpoints: `/api/auth/*`
-- Статические файлы через `tower_http::fs::ServeDir`
+- Статика встроена в бинарь (`static_assets.rs`, rust-embed); `CFGY_WEB_ROOT` — читать с диска; SPA fallback на `index.html`
 
 ### Аутентификация
 
 - JWT для веб-сессий (session tokens)
 - API tokens для CLI/CI (Bearer token в Authorization header)
 - Cookies для веб-сессий (`cfgy_session`)
-- ZID OAuth 2.0 (Authorization Code) через `/auth/zid/*` — вход через ZID IdP, обмен code на токены на бэкенде, сессия в cookie
+- OIDC SSO (Authorization Code) через `/auth/oidc/*` (алиасы `/oauth/oidc/*`, `/auth/zid/*`, `/oauth/zid/*`) — обмен code на токены на бэкенде, сессия в cookie
+- Пользователь OIDC привязывается только по паре (provider, sub), не по email/username
+- Регистрация email/паролем: только первый пользователь, если не задан `CFGY_ALLOW_REGISTRATION`
 
 ### Ответы API
 
@@ -264,9 +269,11 @@ pub async fn create_project(
 
 ### Структура команд
 
-- Команды определены в `cli/src/commands.rs` через `clap`
-- Основные команды: `init`, `use`, `set`, `get`, `list`, `delete`, `run`
-- Подкоманды: `projects`, `token`
+- Команды определены в `src/cli/commands.rs` через `clap`, обработка — в `src/main.rs`
+- Основные команды: `init`, `use`, `set`, `get`, `list`, `env`, `delete`, `run`
+- Подкоманды: `projects`, `token`, `config`, `completions`
+- Служебные: `setup`, `generate-secrets`, `serve`
+- Форматы вывода (env/json/yaml) — `src/cli/formats.rs`
 
 ### Режимы работы
 
@@ -308,8 +315,8 @@ pub async fn create_project(
 
 ### Паттерны компонентов (Svelte)
 
-- Props через `export let propName` или типизированные через интерфейсы
-- События через `dispatch` или callback-props
+- Svelte 5 runes: props через `let { ... }: Props = $props()`
+- События через callback-props (`onClose`, `onClick`)
 - Глобальное состояние: stores (`auth`, toast) в `web/src/lib/`
 
 ### Обработка ошибок API
@@ -322,8 +329,7 @@ pub async fn create_project(
 
 ### Rust (Cargo)
 
-- Workspace зависимости в корневом `Cargo.toml`
-- Версии зависимостей через `workspace = true`
+- Один крейт `cfgy`, зависимости в корневом `Cargo.toml`
 - Edition: 2024
 
 ### Node.js (npm)
@@ -355,11 +361,11 @@ pub async fn create_project(
 
 ## Правила тестирования
 
-### Smoke-тесты
+### E2E-тесты
 
-- Интеграционные тесты в `tests/smoke_tests.rs`
-- Требуют запущенный сервер на `:8080`
-- Запуск: `cargo test --bin smoke_tests`
+- Тесты в `tests/e2e.rs`
+- Запуск: `task e2e` (`scripts/run-e2e.sh`: сборка, миграции, запуск сервера на `:8080`, тесты, остановка)
+- Требуют доступную БД (`task up`); пишут в БД из `DATABASE_URL`
 
 ### Unit-тесты
 
@@ -372,8 +378,8 @@ pub async fn create_project(
 ### Сервер
 
 - Конфигурация через переменные окружения
-- Структура: `DATABASE_URL`, `SERVER_HOST`, `CFGY_MASTER_KEY` (без двойного подчеркивания)
-- ZID OAuth 2.0: `ZID_ISSUER`, `ZID_BASE_URL` (опционально), `ZID_CLIENT_ID`, `ZID_CLIENT_SECRET`, `ZID_REDIRECT_URI` — для входа через ZID по Authorization Code flow
+- Переменные: `DATABASE_URL`, `DATABASE_MAX_CONNECTIONS`, `SERVER_HOST`, `SERVER_PORT`, `CFGY_MASTER_KEY` (обязательна), `CFGY_JWT_SECRET`, `CFGY_ALLOW_REGISTRATION`, `CFGY_FRONTEND_URL`, `CFGY_WEB_ROOT`
+- OIDC SSO: `OIDC_ISSUER` (или `OIDC_BASE_URL`), `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_PROVIDER_NAME`, `OIDC_TLS_INSECURE`, `OIDC_CA_FILE`; `ZID_*` принимаются как fallback
 - Значения по умолчанию в `config::Config::default()`
 - Загрузка через `config::Config::load()` (читает переменные напрямую через `std::env::var()`)
 
@@ -388,7 +394,7 @@ pub async fn create_project(
 ### Команды
 
 - Использовать `task` вместо `make`
-- Основные команды: `task run`, `task web`, `task up`, `task down`, `task migrate`
+- Основные команды: `task run`, `task web`, `task up`, `task down`, `task migrate`, `task e2e`, `task generate-secrets`
 - Справка: `task` или `task --list`
 
 ## Общие правила для AI агентов
@@ -433,7 +439,6 @@ pub async fn create_project(
 
 ## Полезные ссылки
 
-- `.github/copilot-instructions.md` - подробные инструкции для Copilot
-- `design.md` - архитектурные решения
-- `.cursor/rules/design_system_rules.mdc` - правила дизайн-системы для фронтенда
+- `.github/copilot-instructions.md` - инструкции для Copilot
+- `design.md` - исходный план проекта (исторический документ)
 - `README.md` - общая документация проекта

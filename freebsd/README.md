@@ -1,30 +1,27 @@
 # Установка cfgy-server как сервиса на FreeBSD
 
-Файлы для настройки системного сервиса **cfgy_server** на FreeBSD: rc.d-скрипт, установщик, шаблон конфига и ротация логов. Сервис запускается одним бинарником и при необходимости раздаёт статику Web UI из `/var/lib/cfgy_server/web/build`.
+Файлы для настройки системного сервиса **cfgy_server** на FreeBSD: rc.d-скрипт, установщик, шаблон конфига и ротация логов. Сервис запускается одним бинарником `cfgy` (`cfgy serve`); статика Web UI встроена в бинарь, внешний каталог нужен только при заданном `CFGY_WEB_ROOT`.
 
 ## Требования
 
 - FreeBSD с установленными базовыми утилитами
-- Собранный бинарник `cfgy-server` (например, `cargo build --release -p cfgy-server` → `target/release/cfgy-server`)
-- Для Web UI: собранная статика `web/build` (в каталоге `web/`: `npm ci && npm run build`)
+- Собранный бинарник `cfgy` (`task build` → `target/release/cfgy`; статика `web/build` встраивается при сборке, поэтому сначала `task build-web`)
 
 ## Быстрая установка
 
 1. Соберите сервер (и при необходимости фронтенд) и перейдите в каталог `freebsd/` репозитория:
    ```sh
-   cargo build --release -p cfgy-server
-   # Опционально, для Web UI:
-   (cd web && npm ci && npm run build)
+   task build-web build
    cd freebsd
    ```
 
-2. Запустите установку от root. Статика Web UI копируется автоматически из `web/build` репозитория (если есть). Второй аргумент — путь к `web/build` (если запускаете не из каталога freebsd/ репо):
+2. Запустите установку от root (или `task install-freebsd` из корня репозитория). Если в репозитории есть `web/build`, установщик копирует её в `/var/lib/cfgy_server/web/build` — это нужно только для `CFGY_WEB_ROOT`. Второй аргумент — явный путь к `web/build`:
    ```sh
-   sudo ./install.sh ../target/release/cfgy-server
+   sudo ./install.sh ../target/release/cfgy
    ```
    С явным путём к статике:
    ```sh
-   sudo ./install.sh ../target/release/cfgy-server /path/to/web/build
+   sudo ./install.sh ../target/release/cfgy /path/to/web/build
    ```
 
 3. Отредактируйте конфиг и включите сервис:
@@ -71,9 +68,10 @@ cfgy_server_pidfile="/var/run/cfgy_server/cfgy_server.pid"
 cfgy_server_cwd="/var/lib/cfgy_server"
 ```
 
-  `cfgy_server_cwd` — рабочая директория сервера (по умолчанию `/var/lib/cfgy_server`; оттуда сервер ищет `web/build`).
+  `cfgy_server_cwd` — рабочая директория сервера (по умолчанию `/var/lib/cfgy_server`).
 - Устаревший синоним для файла конфига: `cfgy_server_config` (поддерживается как fallback для `cfgy_server_env_file`).
-- Путь к статике Web UI можно задать переменной `CFGY_WEB_ROOT` в конфиге (каталог с `index.html`, например `/var/lib/cfgy_server/web/build`).
+- Чтобы раздавать статику с диска вместо встроенной, задайте `CFGY_WEB_ROOT` в конфиге (каталог с `index.html`, например `/var/lib/cfgy_server/web/build`).
+- `CFGY_MASTER_KEY` обязателен: без него сервис не запустится (`cfgy generate-secrets --format env`).
 
 **Структура каталога конфигурации** (`/usr/local/etc/cfgy_server/`) после установки:
 
@@ -86,7 +84,3 @@ cfgy_server_cwd="/var/lib/cfgy_server"
 ## Ротация логов
 
 Добавьте строку из `newsyslog.conf.sample` в `/etc/newsyslog.conf` или создайте файл в `/etc/newsyslog.d/` (если система поддерживает include).
-
-## Подробная спецификация
-
-См. [FREEBSD_SERVICE_PROMPT_CFGY.md](../FREEBSD_SERVICE_PROMPT_CFGY.md) в корне репозитория.

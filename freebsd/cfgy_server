@@ -18,7 +18,7 @@
 # cfgy_server_config (str):	Устаревший синоним cfgy_server_env_file.
 # cfgy_server_logfile (str):	Файл логов. По умолчанию "/var/log/cfgy_server/cfgy_server.log".
 # cfgy_server_pidfile (str):	PID-файл. По умолчанию "/var/run/cfgy_server/cfgy_server.pid".
-# cfgy_server_cwd (str):	Рабочая директория (сервер ищет web/dist там).
+# cfgy_server_cwd (str):	Рабочая директория.
 #				По умолчанию "/var/lib/cfgy_server".
 #
 
@@ -76,7 +76,7 @@ cfgy_server_start()
 	fi
 
 	# Запуск без -p/-o: daemon сразу возвращает управление.
-	# CWD задаётся в cfgy_server_cwd (сервер ищет web/dist там).
+	# CWD задаётся в cfgy_server_cwd.
 	# Переменные из env_file подгружаем в окружение; echo $$ и exec — один процесс, PID в pidfile.
 	/usr/sbin/daemon -u "$cfgy_server_user" sh -c 'cd "'"$cfgy_server_cwd"'" && set -a && . "'"$cfgy_server_env_file"'"; set +a && echo $$ > "'"$pidfile"'" && exec '"$command"' '"$command_args"' >> "'"$cfgy_server_logfile"'" 2>&1'
 

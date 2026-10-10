@@ -5,12 +5,12 @@
 # База данных
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/cfgy
 
-# Статика Web UI (опционально). По умолчанию сервис ищет web/dist в рабочей директории
-# (/var/lib/cfgy_server). Если статику положили в другое место — задайте путь к каталогу с index.html:
-# CFGY_WEB_ROOT=/var/lib/cfgy_server/web/dist
+# Статика Web UI встроена в бинарь. Чтобы раздавать её с диска — путь к каталогу с index.html:
+# CFGY_WEB_ROOT=/var/lib/cfgy_server/web/build
 
-# Криптография (генерируются автоматически при первом запуске, если не заданы)
-# Для production рекомендуется задать явно (cfgy generate-secrets --format env)
+# Криптография: cfgy generate-secrets --format env
+# CFGY_MASTER_KEY обязателен — без него сервер не запустится.
+# CFGY_JWT_SECRET без значения генерируется при старте (сессии сбрасываются после перезапуска).
 # CFGY_MASTER_KEY=
 # CFGY_JWT_SECRET=
 
@@ -21,11 +21,11 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/cfgy
 # Логирование
 RUST_LOG=info
 
-# ZID OAuth 2.0 (вход через ZID в веб-интерфейсе). Опционально.
-# Базовый URL ZID (issuer). Альтернатива: ZID_BASE_URL
-# ZID_ISSUER=https://zid.example.com
-# client_id и client_secret из настроек приложения в ZID
-# ZID_CLIENT_ID=
-# ZID_CLIENT_SECRET=
-# Callback URL. Должен побайтово совпадать с redirect_uris в ZID.
-# ZID_REDIRECT_URI=https://your-server.example.com/oauth/zid/callback
+# OIDC SSO (вход через внешний IdP в веб-интерфейсе). Опционально. ZID_* принимаются как fallback.
+# Issuer IdP. Альтернатива: OIDC_BASE_URL
+# OIDC_ISSUER=https://idp.example.com
+# client_id и client_secret из настроек приложения в IdP
+# OIDC_CLIENT_ID=
+# OIDC_CLIENT_SECRET=
+# Callback URL. Должен побайтово совпадать с redirect_uris в IdP.
+# OIDC_REDIRECT_URI=https://your-server.example.com/auth/oidc/callback

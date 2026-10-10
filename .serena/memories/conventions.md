@@ -29,7 +29,8 @@
 ## Auth (три механизма)
 - Веб: JWT-сессия в cookie `cfgy_session`.
 - CLI/CI: Bearer API-токены.
-- SSO: ZID OAuth 2.0 Authorization Code (`ZID_*`), state/next-cookie с TTL 15 минут.
+- SSO: OIDC Authorization Code (`OIDC_*`, `ZID_*` — fallback), state/next-cookie с TTL 15 минут.
+  Пользователь привязывается только по (provider, sub).
 Реализация — `adapters/api/auth.rs` + `application/auth.rs`.
 
 ## Web
