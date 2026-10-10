@@ -23,7 +23,7 @@ cargo check          # Type-check
 cargo clippy         # Lint
 cargo fmt            # Format
 cargo test           # Unit tests
-cargo test --bin smoke_tests  # Integration tests (requires running server on :8080)
+task e2e             # E2E tests (tests/e2e.rs; builds, migrates, starts/stops server on :8080)
 
 # Web (from web/)
 npm install          # Install deps
@@ -84,10 +84,11 @@ PostgreSQL 18. Migrations in `migrations/` (auto-applied on server startup).
 ## Key Environment Variables
 
 - `DATABASE_URL` — PostgreSQL connection (default: `postgres://postgres:postgres@localhost:5433/cfgy`)
-- `CFGY_MASTER_KEY` — hex-encoded 32-byte AES-GCM key
+- `CFGY_MASTER_KEY` — hex-encoded 32-byte AES-GCM key (required, server refuses to start without it)
 - `CFGY_JWT_SECRET` — JWT signing secret
 - `RUST_LOG` — logging level
-- `ZID_*` — OAuth 2.0 SSO configuration
+- `CFGY_ALLOW_REGISTRATION` — email/password registration (default: only the first user)
+- `OIDC_*` — OAuth 2.0 / OIDC SSO configuration (`ZID_*` accepted as fallback)
 
 ## Adding a New Feature (server-side)
 
@@ -102,7 +103,7 @@ PostgreSQL 18. Migrations in `migrations/` (auto-applied on server startup).
 
 - JWT sessions for web dashboard (cookie: `cfgy_session`)
 - Bearer API tokens for CLI/CI
-- ZID OAuth 2.0 SSO (Authorization Code flow)
+- OIDC SSO (Authorization Code flow), users linked only by (provider, sub)
 
 ## Rust Conventions
 
