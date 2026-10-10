@@ -801,22 +801,30 @@ pub async fn oidc_callback(
                 .into_response();
             }
         };
-        let user = if let Some(u) = existing {
-            u
-        } else {
-            match state
-                .user_repo
-                .create_sso_user(&email_to_save, &username)
-                .await
-            {
-                Ok(u) => u,
-                Err(e) => {
-                    return oidc_callback_error_redirect(
-                        &format!("Ошибка создания пользователя: {}", e),
-                        secure,
-                    )
-                    .into_response();
-                }
+        // Привязка только по (provider, sub): username у провайдера не уникален
+        // и может меняться пользователем, склейка по нему даёт захват чужого аккаунта
+        if existing.is_some() {
+            return oidc_callback_error_redirect(
+                &format!(
+                    "Имя пользователя '{}' уже занято другим аккаунтом, обратитесь к администратору",
+                    username
+                ),
+                secure,
+            )
+            .into_response();
+        }
+        let user = match state
+            .user_repo
+            .create_sso_user(&email_to_save, &username)
+            .await
+        {
+            Ok(u) => u,
+            Err(e) => {
+                return oidc_callback_error_redirect(
+                    &format!("Ошибка создания пользователя: {}", e),
+                    secure,
+                )
+                .into_response();
             }
         };
         if let Err(e) = state
